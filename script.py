@@ -25,7 +25,7 @@ def extract_integer(s):
     return None
 
 
-async def fetch_data():
+async def get_products():
     conn = await asyncpg.connect(
         user=os.getenv("PG_USER"),
         password=os.getenv("PG_PASSWORD"),
@@ -44,20 +44,19 @@ async def main():
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
         beep=False,
     )
-    products = await fetch_data()
+    products = await get_products()
     for product in products:
-
-        # link = base_product_url + product.get("asin")
-        # # driver.prompt()
-        link = base_review_url + product.get("asin")
+        asin = product.get("asin")
+        print("ASIN: " + asin)
+        link = base_review_url + asin
         driver.get(link, bypass_cloudflare=True)
         html = BeautifulSoup(driver.page_html, "html.parser")
 
         product_name = html.find(attrs={"data-hook": "product-link"})
         print("Product Name: " + product_name.get_text())
 
-        star_rating = html.find(attrs={"data-hook": "rating-out-of-text"})
-        print("Star Rating: " + star_rating.get_text())
+        overall_rating = html.find(attrs={"data-hook": "rating-out-of-text"})
+        print("Overall Rating: " + overall_rating.get_text())
 
         total_review_count = html.find(attrs={"data-hook": "total-review-count"})
         print("Total Review Count: " + extract_integer(total_review_count.get_text()))
@@ -65,21 +64,19 @@ async def main():
         print("Starting to analyze reviews... ")
 
         review_list = html.find_all(attrs={"data-hook": "review"})
-        # print(review_list)
-        # for review in review_list:
-        # print(review)
-        # user_name = review.find(attrs={"data-hook": "genome-widget"})
-        # print("Username: " + user_name)
+        for review in review_list:
+            review_id = review["id"]
+            print("Review ID: " + review_id)
 
-        # review_list = driver.get_text("#cm_cr-review_list")
-        # review_list = driver.get_text("[data-hook='review']:not(.cr-vote-action-bar)")
-        # p = pq(driver.page_html)
-        # print(
-        #     p("[data-hook='review']")
-        #     # .each()
-        #     # .not_("[data-reftag='cm_cr_getr_d_cmt_opn']")
-        #     # .text()
-        # )
+            review_title = review.find(attrs={"data-hook": "review-title"})
+            print("Review Rating: " + review_title.contents[0].get_text())
+            print("Review Title: " + review_title.contents[3].get_text())
+
+            review_href = review_title["href"]
+            print("Review href: " + review_href)
+
+            review_body = review.find(attrs={"data-hook": "review-body"})
+            print("Review Body: " + review_body.get_text())
 
     driver.close()
 

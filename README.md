@@ -11,10 +11,14 @@ Requirements:
 - [ ] If Video Exist
 - [ ] Grab Links for Picture
 - [ ] Grab Links for Video
-- [ ] Review ID
-- [ ] Review Link
+- [x] Product Overall Rating
+  - [ ] Convert to integer
+- [x] Review ID
+- [x] Review Link
 - [ ] Country of Review
-- [ ] Review Rating
-- [ ] Review Title
-- [ ] Review Description
+- [x] Review Rating
+  - [ ] Convert to integer
+- [x] Review Title
+- [x] Review Description
 - [ ] Run Date
+- [ ] If initial request is blocked we must restart the script until amazon lets us through
