@@ -1,5 +1,12 @@
 # Zon Crawler
 
+# Getting Started
+
+1. Install `pipenv` on your machine
+2. Run `pipenv install` in the root directory of the project
+3. Create a `.env` file. You can copy the `.env.example` file and fill in the variables for your postgres set DB.
+4. Run the script via `python3 ./script.py`
+
 Requirements:
 
 - [ ] Start Date for reviews = Jan, 2022
