@@ -11,7 +11,7 @@ load_dotenv()
 
 base_product_url = "https://www.amazon.com/dp/"
 base_review_url = "https://www.amazon.com/product-reviews/"
-
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0"
 
 def extract_integer(s):
     # This regex pattern looks for digits, possibly separated by commas
@@ -43,7 +43,7 @@ async def main():
 
     driver = Driver(
         # headless=True,
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+        user_agent,
         beep=False,
     )
     products = await get_products()
@@ -80,8 +80,18 @@ async def main():
             print("Review Title: " + review_title.contents[3].get_text())
 
             # TODO: Requires splitting date from country
-            review_date = review.find(attrs={"data-hook": "review-date"})
-            print("Review Date: " + review_date.get_text())
+            review_date_field = review.find(attrs={"data-hook": "review-date"})
+            # Use regular expressions to extract country and date
+            match = re.search(r"Reviewed in (.+?) on (.+)", review_date_field.get_text())
+
+            # Check if the pattern was matched and extract groups
+            if match:
+                country = match.group(1)
+                date = match.group(2)
+                print(f"Review Country: {country}")
+                print(f"Review Date: {date}")
+            else:
+                print("Pattern not found.")
 
             review_body = review.find(attrs={"data-hook": "review-body"})
             print("Review Body: " + review_body.get_text())

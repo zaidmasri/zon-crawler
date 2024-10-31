@@ -29,9 +29,9 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 - [x] Review ID
 - [x] Review Link
 - [x] Country of Review
-  - [ ] Requires splitting string with date of review
+  - [x] Requires splitting string with date of review
 - [x] Review Date
-  - [ ] Requires splitting string with review date
+  - [x] Requires splitting string with review date
 - [x] Review Rating
   - [ ] Convert to float
 - [x] Review Title
