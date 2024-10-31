@@ -38,3 +38,6 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 - [x] Review Description
 - [x] Run Date
 - [ ] If initial request is blocked we must restart the script until amazon lets us through
+- [ ] Using a crawler Seed database with 100,000 amazon products
+  - [ ] Control Group
+  - [ ] Target Group
