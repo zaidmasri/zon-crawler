@@ -1,14 +1,13 @@
 import os
-from botasaurus_driver import Driver
 import asyncio
 import asyncpg
 import re
+from datetime import datetime
+from botasaurus_driver import Driver
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-# from pyquery import PyQuery as pq
 load_dotenv()
-
 
 base_product_url = "https://www.amazon.com/dp/"
 base_review_url = "https://www.amazon.com/product-reviews/"
@@ -39,6 +38,9 @@ async def get_products():
 
 
 async def main():
+    today_date = datetime.now()
+    print(today_date)
+
     driver = Driver(
         # headless=True,
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
@@ -50,6 +52,8 @@ async def main():
         print("ASIN: " + asin)
         link = base_review_url + asin
         driver.get(link, bypass_cloudflare=True)
+        # TODO: Check if our request is blocked
+
         html = BeautifulSoup(driver.page_html, "html.parser")
 
         product_name = html.find(attrs={"data-hook": "product-link"})
@@ -69,19 +73,29 @@ async def main():
             print("Review ID: " + review_id)
 
             review_title = review.find(attrs={"data-hook": "review-title"})
-            print("Review Rating: " + review_title.contents[0].get_text())
-            print("Review Title: " + review_title.contents[3].get_text())
 
             review_href = review_title["href"]
             print("Review href: " + review_href)
+            print("Review Rating: " + review_title.contents[0].get_text())
+            print("Review Title: " + review_title.contents[3].get_text())
+
+            # TODO: Requires splitting date from country
+            review_date = review.find(attrs={"data-hook": "review-date"})
+            print("Review Date: " + review_date.get_text())
 
             review_body = review.find(attrs={"data-hook": "review-body"})
             print("Review Body: " + review_body.get_text())
+
+            verified_purchase = review.find(attrs={"data-hook": "avp-badge"})
+            print("Verified Purchase: " + verified_purchase.get_text())
+
+            found_helpful = review.find(attrs={"data-hook": "helpful-vote-statement"})
+            if found_helpful:
+                print("Found Helpful: " + found_helpful.get_text())
+            else:
+                print("Found Helpful: null")
 
     driver.close()
 
 
 asyncio.run(main())
-
-
-#

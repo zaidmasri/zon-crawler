@@ -18,20 +18,23 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 - [ ] Start Date for reviews = Jan, 2022
 - [ ] End Date for reviews = Nov, 2024 (Don't grab new reviews from either group)
 
-- [ ] Verified Purchase
-- [ ] Found Helpful
+- [x] Verified Purchase
+- [x] Found Helpful
 - [ ] If Pictures Exist
 - [ ] If Video Exist
 - [ ] Grab Links for Picture
 - [ ] Grab Links for Video
 - [x] Product Overall Rating
-  - [ ] Convert to integer
+  - [ ] Convert to float
 - [x] Review ID
 - [x] Review Link
-- [ ] Country of Review
+- [x] Country of Review
+  - [ ] Requires splitting string with date of review
+- [x] Review Date
+  - [ ] Requires splitting string with review date
 - [x] Review Rating
-  - [ ] Convert to integer
+  - [ ] Convert to float
 - [x] Review Title
 - [x] Review Description
-- [ ] Run Date
+- [x] Run Date
 - [ ] If initial request is blocked we must restart the script until amazon lets us through
