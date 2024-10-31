@@ -99,7 +99,6 @@ async def main():
             )
             print("Review Title: " + review_title.contents[3].get_text())
 
-            # TODO: Requires splitting date from country
             review_date_field = review.find(attrs={"data-hook": "review-date"})
             # Use regular expressions to extract country and date
             match = re.search(
