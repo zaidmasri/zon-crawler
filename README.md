@@ -20,6 +20,9 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 
 - [x] Verified Purchase
 - [x] Found Helpful
+- [ ] Iterate over all review pages
+  - [ ] changing the filter input
+  - [ ] check if review is recorded already and within start and end date requirements
 - [ ] If Pictures Exist
 - [ ] If Video Exist
 - [ ] Grab Links for Picture
@@ -41,3 +44,9 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 - [ ] Using a crawler Seed database with 100,000 amazon products
   - [ ] Control Group
   - [ ] Target Group
+- [ ] Build database schema
+  - [ ] Logs
+  - [ ] Products
+  - [ ] Reviews
+  - [ ] Run Summary
+- [ ] Insert reviews into database
