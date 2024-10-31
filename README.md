@@ -25,7 +25,7 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 - [ ] Grab Links for Picture
 - [ ] Grab Links for Video
 - [x] Product Overall Rating
-  - [ ] Convert to float
+  - [x] Convert to float
 - [x] Review ID
 - [x] Review Link
 - [x] Country of Review
@@ -33,7 +33,7 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 - [x] Review Date
   - [x] Requires splitting string with review date
 - [x] Review Rating
-  - [ ] Convert to float
+  - [x] Convert to float
 - [x] Review Title
 - [x] Review Description
 - [x] Run Date

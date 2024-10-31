@@ -11,7 +11,10 @@ load_dotenv()
 
 base_product_url = "https://www.amazon.com/dp/"
 base_review_url = "https://www.amazon.com/product-reviews/"
-user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0"
+user_agent = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0"
+)
+
 
 def extract_integer(s):
     # This regex pattern looks for digits, possibly separated by commas
@@ -22,6 +25,17 @@ def extract_integer(s):
         # Remove commas and return the integer as a string
         return match.group(0).replace(",", "")
     return None
+
+
+# Input string example: "2.0 out of 5 stars"
+def extract_float_from_phrase(s):
+    # Use regular expression to find the float value
+    match = re.search(r"\d+\.\d+|\d+", s)
+    if match:
+        rating = float(match.group())
+        return rating
+    else:
+        return None
 
 
 async def get_products():
@@ -39,7 +53,7 @@ async def get_products():
 
 async def main():
     today_date = datetime.now()
-    print(today_date)
+    print("Run date: " + str(today_date))
 
     driver = Driver(
         # headless=True,
@@ -60,7 +74,10 @@ async def main():
         print("Product Name: " + product_name.get_text())
 
         overall_rating = html.find(attrs={"data-hook": "rating-out-of-text"})
-        print("Overall Rating: " + overall_rating.get_text())
+        print(
+            "Overall Rating: "
+            + str(extract_float_from_phrase(overall_rating.get_text()))
+        )
 
         total_review_count = html.find(attrs={"data-hook": "total-review-count"})
         print("Total Review Count: " + extract_integer(total_review_count.get_text()))
@@ -76,13 +93,18 @@ async def main():
 
             review_href = review_title["href"]
             print("Review href: " + review_href)
-            print("Review Rating: " + review_title.contents[0].get_text())
+            print(
+                "Review Rating: "
+                + str(extract_float_from_phrase(review_title.contents[0].get_text()))
+            )
             print("Review Title: " + review_title.contents[3].get_text())
 
             # TODO: Requires splitting date from country
             review_date_field = review.find(attrs={"data-hook": "review-date"})
             # Use regular expressions to extract country and date
-            match = re.search(r"Reviewed in (.+?) on (.+)", review_date_field.get_text())
+            match = re.search(
+                r"Reviewed in (.+?) on (.+)", review_date_field.get_text()
+            )
 
             # Check if the pattern was matched and extract groups
             if match:
