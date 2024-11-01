@@ -4,14 +4,16 @@ import string
 import asyncpg
 import re
 from datetime import datetime
-from botasaurus_driver import Driver
+from botasaurus_driver import Driver, Wait
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 load_dotenv()
 
-base_product_url = "https://www.amazon.com/dp/"
-base_review_url = "https://www.amazon.com/product-reviews/"
+base_amazon_url = "https://www.amazon.com/"
+base_product_url = base_amazon_url + "dp/"
+base_review_url = base_amazon_url + "product-reviews/"
+
 user_agent = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0"
 )
@@ -56,7 +58,7 @@ async def get_products():
 def scrape_review_page(asin: string, driver: Driver):
     print("ASIN: " + asin)
     link = base_review_url + asin
-    driver.get(link, bypass_cloudflare=True)
+    driver.google_get(link, bypass_cloudflare=True)
     # TODO: Check if our request is blocked
 
     html = BeautifulSoup(driver.page_html, "html.parser")
@@ -115,21 +117,45 @@ def scrape_review_page(asin: string, driver: Driver):
             print("Found Helpful: null")
 
 
-async def main():
+# Uses get_products
+# Then scrapes every product by asin
+async def run_scrapper(driver: Driver):
     today_date = datetime.now()
     print("Run date: " + str(today_date))
-
-    driver = Driver(
-        # headless=True,
-        user_agent,
-        beep=False,
-    )
     products = await get_products()
     for product in products:
         asin = product.get("asin")
         scrape_review_page(asin, driver)
 
     driver.close()
+
+
+def crawl_products(url: string, max: int, product_links: list[str], driver: Driver):
+
+    if len(product_links) >= max:
+        driver.close()
+        return product_links
+
+    driver.google_get(url, wait=Wait.VERY_LONG)
+    html = BeautifulSoup(driver.page_html, "html.parser")
+
+    links = html.find_all("a", href=re.compile(r"/(dp)/"))
+    for link in links:
+        product_links.append(link["href"])
+    print(len(product_links))
+
+    second_last_url_on_page = base_amazon_url + product_links[len(product_links) - 2]
+    crawl_products(
+        url=second_last_url_on_page, max=max, product_links=product_links, driver=driver
+    )
+
+
+async def main():
+    driver = Driver(user_agent=user_agent, headless=False)
+    # await run_scrapper(driver)
+
+    products = crawl_products(base_amazon_url, 400, [], driver)
+    print(len(products))
 
 
 asyncio.run(main())
