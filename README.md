@@ -49,6 +49,7 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
     - [ ] Created At
     - [ ] Error Message
   - [ ] Products
+    - [ ] ID (internal)
     - [ ] asin
     - [ ] name
     - [ ] overall rating
