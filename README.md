@@ -45,8 +45,32 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
   - [ ] Control Group
   - [ ] Target Group
 - [ ] Build database schema
-  - [ ] Logs
+  - [ ] Error Logs
+    - [ ] Created At
+    - [ ] Error Message
   - [ ] Products
+    - [ ] asin
+    - [ ] name
+    - [ ] overall rating
+    - [ ] number of ratings
+    - [ ] number of reviews
   - [ ] Reviews
+    - [ ] username
+    - [ ] title
+    - [ ] body
+    - [ ] is verified
+    - [ ] country
+    - [ ] date
+    - [ ] created at (in our system)
+    - [ ] rating
+    - [ ] id (from amazon)
+    - [ ] url
+  - [ ] Review Media
+    - [ ] review id
+    - [ ] url
   - [ ] Run Summary
+    - [ ] Errored out?
+    - [ ] Products Checked
+    - [ ] Created At
+    - [ ] Last Checked Product ID
 - [ ] Insert reviews into database
