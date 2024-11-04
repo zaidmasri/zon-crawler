@@ -1,6 +1,7 @@
 import os
 import asyncio
 import string
+from typing import Coroutine
 import asyncpg
 import re
 from datetime import datetime
@@ -13,10 +14,14 @@ load_dotenv()
 base_amazon_url = "https://www.amazon.com/"
 base_product_url = base_amazon_url + "dp/"
 base_review_url = base_amazon_url + "product-reviews/"
+# Headers rotation
+user_agents = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 Safari/537.36",
+    # add more user agents
+]
 
-user_agent = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0"
-)
+banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X"]
 
 
 # Used to get the number of reviews
@@ -42,14 +47,17 @@ def extract_float_from_phrase(s):
         return None
 
 
-async def get_products():
-    conn = await asyncpg.connect(
+async def get_db_conn():
+    return await asyncpg.connect(
         user=os.getenv("PG_USER"),
         password=os.getenv("PG_PASSWORD"),
         database=os.getenv("PG_DATABASE"),
         host=os.getenv("PG_HOST"),
         port=os.getenv("PG_PORT"),
     )
+
+
+async def get_products(conn: Coroutine):
     values = await conn.fetch("SELECT * FROM products")
     await conn.close()
     return values
@@ -130,32 +138,69 @@ async def run_scrapper(driver: Driver):
     driver.close()
 
 
-def crawl_products(url: string, max: int, product_links: list[str], driver: Driver):
+def get_product_urls(
+    url: string, max: int, product_urls: list[str], driver: Driver, index: int
+):
 
-    if len(product_links) >= max:
-        driver.close()
-        return product_links
+    if len(product_urls) >= max:
+        # driver.close()
+        return product_urls
 
-    driver.google_get(url, wait=Wait.VERY_LONG)
+    driver.get(url, wait=Wait.LONG)
     html = BeautifulSoup(driver.page_html, "html.parser")
 
-    links = html.find_all("a", href=re.compile(r"/(dp)/"))
-    for link in links:
-        product_links.append(link["href"])
-    print(len(product_links))
+    urls = html.find_all("a", href=re.compile(r"/(dp)/"))
+    for link in urls:
+        asin = link["href"].split("/dp/")[1].split("/")[0]
+        # Skip banned ASINs
+        if asin in banned_asin:
+            print(f"Skipping banned ASIN in URL collection: {asin}")
+            continue
+        product_urls.append(link["href"])
+        # product_urls.append(link["href"])
 
-    second_last_url_on_page = base_amazon_url + product_links[len(product_links) - 2]
-    crawl_products(
-        url=second_last_url_on_page, max=max, product_links=product_links, driver=driver
+    return get_product_urls(
+        url=base_amazon_url + product_urls[index],
+        max=max,
+        product_urls=product_urls,
+        driver=driver,
+        index=index + 1,
     )
 
 
 async def main():
-    driver = Driver(user_agent=user_agent, headless=False)
+    conn = await get_db_conn()
+    driver = Driver(user_agent=user_agents[1], headless=False, beep=True)
     # await run_scrapper(driver)
 
-    products = crawl_products(base_amazon_url, 400, [], driver)
-    print(len(products))
+    urls = get_product_urls(base_amazon_url, 10, [], driver, 1)
+    print(str(len(urls)))
+
+    for url in urls:
+        full_url = base_amazon_url + url
+        print("Navigating to URL:")
+        print(full_url)
+        driver.get(full_url, wait=Wait.LONG)
+        html = BeautifulSoup(driver.page_html, "html.parser")
+
+        # Parsing data off page.
+        asin = html.find("input", id="ASIN", attrs={"type": "hidden"})
+        print("ASIN: " + asin["value"])
+
+        product_name = html.find("span", {"id": "productTitle"})
+        print("Product Name: " + product_name.get_text())
+
+        print("Adding to DB")
+        await conn.execute(
+            """
+                INSERT INTO products (asin, name) 
+                VALUES ($1, $2)
+                ON CONFLICT (asin) DO NOTHING
+            """,
+            asin["value"],
+            product_name.get_text(),
+        )
+        print("ASIN: " + asin["value"] + " added to db.")
 
 
 asyncio.run(main())
