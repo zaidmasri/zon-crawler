@@ -1,13 +1,14 @@
 import os
 import asyncio
 import string
-from typing import Coroutine
 import asyncpg
 import re
 from datetime import datetime
 from botasaurus_driver import Driver, Wait
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from helpers import extract_float_from_phrase, extract_integer
+from server import Server
 
 load_dotenv()
 
@@ -24,52 +25,13 @@ user_agents = [
 banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X"]
 
 
-# Used to get the number of reviews
-def extract_integer(s):
-    # This regex pattern looks for digits, possibly separated by commas
-    pattern = r"(\d{1,3}(?:,\d{3})*)"
-    match = re.search(pattern, s)
-
-    if match:
-        # Remove commas and return the integer as a string
-        return match.group(0).replace(",", "")
-    return None
-
-
-# Input string example: "2.0 out of 5 stars"
-def extract_float_from_phrase(s):
-    # Use regular expression to find the float value
-    match = re.search(r"\d+\.\d+|\d+", s)
-    if match:
-        rating = float(match.group())
-        return rating
-    else:
-        return None
-
-
-async def get_db_conn():
-    return await asyncpg.connect(
-        user=os.getenv("PG_USER"),
-        password=os.getenv("PG_PASSWORD"),
-        database=os.getenv("PG_DATABASE"),
-        host=os.getenv("PG_HOST"),
-        port=os.getenv("PG_PORT"),
-    )
-
-
-async def get_products(conn: Coroutine):
-    values = await conn.fetch("SELECT * FROM products")
-    await conn.close()
-    return values
-
-
-def scrape_review_page(asin: string, driver: Driver):
+def scrape_review_page(asin: string, server: Server):
     print("ASIN: " + asin)
     link = base_review_url + asin
-    driver.google_get(link, bypass_cloudflare=True)
+    server.driver.get(link, bypass_cloudflare=True)
     # TODO: Check if our request is blocked
 
-    html = BeautifulSoup(driver.page_html, "html.parser")
+    html = BeautifulSoup(server.driver.page_html, "html.parser")
 
     product_name = html.find(attrs={"data-hook": "product-link"})
     print("Product Name: " + product_name.get_text())
@@ -127,27 +89,26 @@ def scrape_review_page(asin: string, driver: Driver):
 
 # Uses get_products
 # Then scrapes every product by asin
-async def run_scrapper(driver: Driver):
+async def run_scrapper(server: Server):
     today_date = datetime.now()
     print("Run date: " + str(today_date))
-    products = await get_products()
+    products = await server.get_products()
     for product in products:
         asin = product.get("asin")
-        scrape_review_page(asin, driver)
+        scrape_review_page(asin, server)
 
-    driver.close()
+    server.driver.close()
 
 
 def get_product_urls(
-    url: string, max: int, product_urls: list[str], driver: Driver, index: int
+    url: string, max: int, product_urls: list[str], server: Server, index: int
 ):
-
     if len(product_urls) >= max:
         # driver.close()
         return product_urls
 
-    driver.get(url, wait=Wait.LONG)
-    html = BeautifulSoup(driver.page_html, "html.parser")
+    server.driver.get(url, wait=Wait.LONG)
+    html = BeautifulSoup(server.driver.page_html, "html.parser")
 
     urls = html.find_all("a", href=re.compile(r"/(dp)/"))
     for link in urls:
@@ -157,23 +118,29 @@ def get_product_urls(
             print(f"Skipping banned ASIN in URL collection: {asin}")
             continue
         product_urls.append(link["href"])
-        # product_urls.append(link["href"])
 
     return get_product_urls(
         url=base_amazon_url + product_urls[index],
         max=max,
         product_urls=product_urls,
-        driver=driver,
+        server=server,
         index=index + 1,
     )
 
 
 async def main():
-    conn = await get_db_conn()
-    driver = Driver(user_agent=user_agents[1], headless=False, beep=True)
-    # await run_scrapper(driver)
+    conn = await asyncpg.connect(
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        database=os.getenv("PG_DATABASE"),
+        host=os.getenv("PG_HOST"),
+        port=os.getenv("PG_PORT"),
+    )
+    driver = Driver(user_agent=user_agents[0], headless=False, beep=True)
+    srv = Server(db=conn, driver=driver)
 
-    urls = get_product_urls(base_amazon_url, 10, [], driver, 1)
+    # await run_scrapper(driver)
+    urls = get_product_urls(base_amazon_url, 10, [], srv, 1)
     print(str(len(urls)))
 
     for url in urls:
