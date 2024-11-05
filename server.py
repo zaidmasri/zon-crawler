@@ -5,9 +5,9 @@ from typing import Coroutine
 from botasaurus_driver import Driver, Wait
 from bs4 import BeautifulSoup
 from helpers import extract_float_from_phrase, extract_integer
-from main import base_amazon_url, base_review_url
+from constants import BASE_AMAZON_URL, BASE_REVIEW_URL
 
-banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X"]
+banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X", "B0DG2MSMD2"]
 
 
 class Server:
@@ -36,7 +36,7 @@ class Server:
 
     async def run_scrapper(self):
         """
-        Uses get_products()
+        Uses get_products().
         Then scrapes every product by asin
         """
         today_date = datetime.now()
@@ -44,7 +44,7 @@ class Server:
         products = await self.get_products()
         for product in products:
             asin = product.get("asin")
-            self.__scrape_review_page(asin, self)
+            self.__scrape_review_page(asin)
 
         self.driver.close()
 
@@ -55,21 +55,20 @@ class Server:
             # driver.close()
             return product_urls
 
-        self.driver.get(url, wait=Wait.LONG)
+        self.driver.google_get(url, wait=Wait.LONG)
         html = BeautifulSoup(self.driver.page_html, "html.parser")
 
         urls = html.find_all("a", href=re.compile(r"/(dp)/"))
-        for link in urls:
-            asin = link["href"].split("/dp/")[1].split("/")[0]
+        for url in urls:
+            asin = url["href"].split("/dp/")[1].split("/")[0]
             # Skip banned ASINs
             if asin in banned_asin:
                 print(f"Skipping banned ASIN in URL collection: {asin}")
                 continue
-            product_urls.append(link["href"])
+            product_urls.append(url["href"])
 
         return self.get_product_urls(
-            self,
-            url=base_amazon_url + product_urls[index],
+            url=BASE_AMAZON_URL + product_urls[index],
             max=max,
             product_urls=product_urls,
             index=index + 1,
@@ -77,8 +76,8 @@ class Server:
 
     def __scrape_review_page(self, asin: string):
         print("ASIN: " + asin)
-        link = base_review_url + asin
-        self.driver.get(link, bypass_cloudflare=True)
+        link = BASE_REVIEW_URL + asin
+        self.driver.google_get(link, bypass_cloudflare=True)
         # TODO: Check if our request is blocked
 
         html = BeautifulSoup(self.driver.page_html, "html.parser")
