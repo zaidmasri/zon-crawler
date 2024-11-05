@@ -1,8 +1,6 @@
 import os
 import asyncio
-import string
 import asyncpg
-import re
 from botasaurus_driver import Driver, Wait
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -20,36 +18,6 @@ user_agents = [
     # add more user agents
 ]
 
-banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X"]
-
-
-def get_product_urls(
-    url: string, max: int, product_urls: list[str], server: Server, index: int
-):
-    if len(product_urls) >= max:
-        # driver.close()
-        return product_urls
-
-    server.driver.get(url, wait=Wait.LONG)
-    html = BeautifulSoup(server.driver.page_html, "html.parser")
-
-    urls = html.find_all("a", href=re.compile(r"/(dp)/"))
-    for link in urls:
-        asin = link["href"].split("/dp/")[1].split("/")[0]
-        # Skip banned ASINs
-        if asin in banned_asin:
-            print(f"Skipping banned ASIN in URL collection: {asin}")
-            continue
-        product_urls.append(link["href"])
-
-    return get_product_urls(
-        url=base_amazon_url + product_urls[index],
-        max=max,
-        product_urls=product_urls,
-        server=server,
-        index=index + 1,
-    )
-
 
 async def main():
     conn = await asyncpg.connect(
@@ -63,7 +31,7 @@ async def main():
     srv = Server(db=conn, driver=driver)
 
     # await run_scrapper(driver)
-    urls = get_product_urls(base_amazon_url, 10, [], srv, 1)
+    urls = srv.get_product_urls(base_amazon_url, 10, [], srv, 1)
     print(str(len(urls)))
 
     for url in urls:

@@ -2,13 +2,12 @@ from datetime import datetime
 import re
 import string
 from typing import Coroutine
-from botasaurus_driver import Driver
+from botasaurus_driver import Driver, Wait
 from bs4 import BeautifulSoup
 from helpers import extract_float_from_phrase, extract_integer
+from main import base_amazon_url, base_review_url
 
-base_amazon_url = "https://www.amazon.com/"
-base_product_url = base_amazon_url + "dp/"
-base_review_url = base_amazon_url + "product-reviews/"
+banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X"]
 
 
 class Server:
@@ -48,6 +47,33 @@ class Server:
             self.__scrape_review_page(asin, self)
 
         self.driver.close()
+
+    def get_product_urls(
+        self, url: string, max: int, product_urls: list[str], index: int
+    ):
+        if len(product_urls) >= max:
+            # driver.close()
+            return product_urls
+
+        self.driver.get(url, wait=Wait.LONG)
+        html = BeautifulSoup(self.driver.page_html, "html.parser")
+
+        urls = html.find_all("a", href=re.compile(r"/(dp)/"))
+        for link in urls:
+            asin = link["href"].split("/dp/")[1].split("/")[0]
+            # Skip banned ASINs
+            if asin in banned_asin:
+                print(f"Skipping banned ASIN in URL collection: {asin}")
+                continue
+            product_urls.append(link["href"])
+
+        return self.get_product_urls(
+            self,
+            url=base_amazon_url + product_urls[index],
+            max=max,
+            product_urls=product_urls,
+            index=index + 1,
+        )
 
     def __scrape_review_page(self, asin: string):
         print("ASIN: " + asin)
