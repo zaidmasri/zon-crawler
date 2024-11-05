@@ -3,11 +3,9 @@ import asyncio
 import string
 import asyncpg
 import re
-from datetime import datetime
 from botasaurus_driver import Driver, Wait
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from helpers import extract_float_from_phrase, extract_integer
 from server import Server
 
 load_dotenv()
@@ -23,81 +21,6 @@ user_agents = [
 ]
 
 banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X"]
-
-
-def scrape_review_page(asin: string, server: Server):
-    print("ASIN: " + asin)
-    link = base_review_url + asin
-    server.driver.get(link, bypass_cloudflare=True)
-    # TODO: Check if our request is blocked
-
-    html = BeautifulSoup(server.driver.page_html, "html.parser")
-
-    product_name = html.find(attrs={"data-hook": "product-link"})
-    print("Product Name: " + product_name.get_text())
-
-    overall_rating = html.find(attrs={"data-hook": "rating-out-of-text"})
-    print(
-        "Overall Rating: " + str(extract_float_from_phrase(overall_rating.get_text()))
-    )
-
-    total_review_count = html.find(attrs={"data-hook": "total-review-count"})
-    print("Total Review Count: " + extract_integer(total_review_count.get_text()))
-
-    print("Starting to analyze reviews... ")
-
-    review_list = html.find_all(attrs={"data-hook": "review"})
-    for review in review_list:
-        review_id = review["id"]
-        print("Review ID: " + review_id)
-
-        review_title = review.find(attrs={"data-hook": "review-title"})
-
-        review_href = review_title["href"]
-        print("Review href: " + review_href)
-        print(
-            "Review Rating: "
-            + str(extract_float_from_phrase(review_title.contents[0].get_text()))
-        )
-        print("Review Title: " + review_title.contents[3].get_text())
-
-        review_date_field = review.find(attrs={"data-hook": "review-date"})
-        # Use regular expressions to extract country and date
-        match = re.search(r"Reviewed in (.+?) on (.+)", review_date_field.get_text())
-
-        # Check if the pattern was matched and extract groups
-        if match:
-            country = match.group(1)
-            date = match.group(2)
-            print(f"Review Country: {country}")
-            print(f"Review Date: {date}")
-        else:
-            print("Pattern not found.")
-
-        review_body = review.find(attrs={"data-hook": "review-body"})
-        print("Review Body: " + review_body.get_text())
-
-        verified_purchase = review.find(attrs={"data-hook": "avp-badge"})
-        print("Verified Purchase: " + verified_purchase.get_text())
-
-        found_helpful = review.find(attrs={"data-hook": "helpful-vote-statement"})
-        if found_helpful:
-            print("Found Helpful: " + found_helpful.get_text())
-        else:
-            print("Found Helpful: null")
-
-
-# Uses get_products
-# Then scrapes every product by asin
-async def run_scrapper(server: Server):
-    today_date = datetime.now()
-    print("Run date: " + str(today_date))
-    products = await server.get_products()
-    for product in products:
-        asin = product.get("asin")
-        scrape_review_page(asin, server)
-
-    server.driver.close()
 
 
 def get_product_urls(
@@ -158,12 +81,7 @@ async def main():
         print("Product Name: " + product_name.get_text())
 
         print("Adding to DB")
-        await conn.execute(
-            """
-                INSERT INTO products (asin, name) 
-                VALUES ($1, $2)
-                ON CONFLICT (asin) DO NOTHING
-            """,
+        await srv.create_product(
             asin["value"],
             product_name.get_text(),
         )
