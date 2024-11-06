@@ -29,7 +29,7 @@ def create_driver():
     return Driver(
         user_agent=UserAgent.HASHED,
         window_size=WindowSize.HASHED,
-        headless=False,
+        headless=True,
         beep=True,
     )
 

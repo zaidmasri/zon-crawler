@@ -21,10 +21,10 @@ class Server:
     async def gen_products(self):
         try:
             urls = await self.__get_product_urls(
-                max=200,
+                max=2000,
                 product_urls=[],
                 index=0,
-                url="https://www.amazon.com/dp/B0BQHBWPYX/",
+                url="https://www.amazon.com/dp/B08DH979F7",
             )
             print(str(len(urls)))
         except Exception as e:
