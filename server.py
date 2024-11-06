@@ -20,7 +20,12 @@ class Server:
 
     async def gen_products(self):
         try:
-            urls = self.__get_product_urls(BASE_AMAZON_URL, 200, [], 0)
+            urls = self.__get_product_urls(
+                max=200,
+                product_urls=[],
+                index=0,
+                url="https://www.amazon.com/dp/B0BQHBWPYX/",
+            )
             print(str(len(urls)))
         except Exception as e:
             print(f"Error getting product URLs: {e}")
@@ -30,35 +35,37 @@ class Server:
             full_url = BASE_AMAZON_URL + url
             print("Navigating to URL:")
             print(full_url)
-            try:
-                self.driver.get(full_url, wait=Wait.SHORT)
-                html = BeautifulSoup(self.driver.page_html, "html.parser")
 
-                # Parsing data off page.
-                asin = html.find("input", id="i", attrs={"type": "hidden"})
-                if asin:
-                    print("ASIN: " + asin["value"])
-                else:
-                    print("ASIN not found on page.")
+            # Use the helper function to get the HTML content with retries
+            html = await self.__fetch_page_with_retry(full_url)
+            if not html:
+                print(f"Skipping URL {full_url} due to repeated errors.")
+                continue
 
-                product_name = html.find("span", {"id": "productTitle"})
-                if product_name:
-                    print("Product Name: " + product_name.get_text())
-                else:
-                    print("Product name not found on page.")
+            # Parsing data off page.
+            asin = html.find("input", id="ASIN", attrs={"type": "hidden"})
+            if asin:
+                print("ASIN: " + asin["value"])
+            else:
+                print("ASIN not found on page.")
 
-                print("Adding to DB")
-                if asin and product_name:
-                    try:
-                        await self.__db_create_product(
-                            asin["value"],
-                            product_name.get_text(),
-                        )
-                        print("ASIN: " + asin["value"] + " added to db.")
-                    except Exception as e:
-                        print(f"Error adding product to database: {e}")
-            except Exception as e:
-                print(f"Error processing URL {full_url}: {e}")
+            product_name = html.find("span", {"id": "productTitle"})
+            if product_name:
+                print(f"Product Name: {product_name.get_text()}")
+            else:
+                print("Product name not found on page.")
+
+            # Adding to DB if both ASIN and product name are found
+            print("Adding to DB")
+            if asin and product_name:
+                try:
+                    await self.__db_create_product(
+                        asin["value"],
+                        product_name.get_text(),
+                    )
+                    print(f"ASIN: {asin["value"]} added to db.")
+                except Exception as e:
+                    print(f"Error adding product to database: {e}")
 
     async def gen_reviews(self):
         """
@@ -78,7 +85,7 @@ class Server:
             self.driver.close()
 
     def __get_product_urls(
-        self, url: string, max: int, product_urls: list[str], index: int
+        self, max: int, product_urls: list[str], index: int, url=BASE_AMAZON_URL
     ):
         """
         Will return an array of urls of amazon products
@@ -207,7 +214,6 @@ class Server:
                 """
                     INSERT INTO products (asin, name) 
                     VALUES ($1, $2)
-                    ON CONFLICT (asin) DO NOTHING
                 """,
                 asin,
                 name,
@@ -222,3 +228,29 @@ class Server:
             return values
         except Exception as e:
             print(f"Error fetching products: {e}")
+
+    async def __fetch_page_with_retry(self, full_url, max_retries=5):
+        """Helper function to handle CAPTCHA retry logic."""
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                self.driver.google_get(link=full_url, wait=Wait.SHORT)
+                html = BeautifulSoup(self.driver.page_html, "html.parser")
+
+                # Check for CAPTCHA
+                if html.find(id="captchacharacters"):
+                    retry_count += 1
+                    print(f"BOT DETECTED... retrying {retry_count}/{max_retries}")
+                    continue  # Retry the loop if CAPTCHA is detected
+
+                # Return HTML if no CAPTCHA
+                return html
+
+            except Exception as e:
+                print(f"Error loading URL {full_url}: {e}")
+                return None  # Exit if there's another error
+
+        # Return None if max retries reached
+        print(f"Max retries reached for {full_url}.")
+        return None
