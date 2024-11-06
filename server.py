@@ -20,7 +20,7 @@ class Server:
 
     async def gen_products(self):
         try:
-            urls = self.__get_product_urls(
+            urls = await self.__get_product_urls(
                 max=200,
                 product_urls=[],
                 index=0,
@@ -84,7 +84,7 @@ class Server:
         finally:
             self.driver.close()
 
-    def __get_product_urls(
+    async def __get_product_urls(
         self, max: int, product_urls: list[str], index: int, url=BASE_AMAZON_URL
     ):
         """
@@ -95,8 +95,7 @@ class Server:
                 return product_urls
 
             print(f"Searching for products on the following page: {url}")
-            self.driver.google_get(url)
-            html = BeautifulSoup(self.driver.page_html, "html.parser")
+            html = await self.__fetch_page_with_retry(url)
             urls = html.find_all("a", href=re.compile(r"/(dp)/"))
             for url in urls:
                 asin = url["href"].split("/dp/")[1].split("/")[0]
@@ -105,7 +104,7 @@ class Server:
                     continue
                 product_urls.append(url["href"])
             print(f"Product URLS: {str(len(product_urls))}")
-            return self.__get_product_urls(
+            return await self.__get_product_urls(
                 url=BASE_AMAZON_URL + product_urls[index],
                 max=max,
                 product_urls=product_urls,
@@ -119,9 +118,7 @@ class Server:
         print("ASIN: " + asin)
         try:
             link = BASE_REVIEW_URL + asin
-            self.driver.google_get(link, bypass_cloudflare=True)
-
-            html = BeautifulSoup(self.driver.page_html, "html.parser")
+            html = self.__fetch_page_with_retry(link)
             product_name = html.find(attrs={"data-hook": "product-link"})
             print(
                 "Product Name: " + (product_name.get_text() if product_name else "N/A")
@@ -235,7 +232,9 @@ class Server:
 
         while retry_count < max_retries:
             try:
-                self.driver.google_get(link=full_url, wait=Wait.SHORT)
+                self.driver.google_get(
+                    link=full_url, wait=Wait.SHORT, bypass_cloudflare=True
+                )
                 html = BeautifulSoup(self.driver.page_html, "html.parser")
 
                 # Check for CAPTCHA
