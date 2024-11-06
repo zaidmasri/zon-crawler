@@ -253,3 +253,4 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,macos,windows,python
 
 .vscode
+app_logs.json

@@ -8,6 +8,7 @@ beautifulsoup4 = "*"
 botasaurus = "*"
 asyncpg = "*"
 python-dotenv = "*"
+python-json-logger = "*"
 
 [dev-packages]
 
