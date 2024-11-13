@@ -30,7 +30,7 @@ There are two ways you can run the code. One for generating products and the oth
 
 # Requirements:
 
-- [ ] Start Date for reviews = Jan, 2022
+- [ ] Start Date for reviews = Oct, 1 2024
 - [ ] End Date for reviews = Nov, 2024 (Don't grab new reviews from either group)
 
 - [x] Verified Purchase
