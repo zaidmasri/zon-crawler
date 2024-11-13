@@ -1,11 +1,10 @@
 from datetime import datetime
 from logging import Logger
 import re
-import string
 from typing import Coroutine
-from botasaurus_driver import Driver, Wait
-from bs4 import BeautifulSoup
-from helpers import extract_float_from_phrase, extract_integer
+from botasaurus_driver import Driver
+
+from helpers import extract_float_from_phrase, extract_integer, fetch_page_with_retry
 from constants import BASE_AMAZON_URL, BASE_REVIEW_URL
 
 banned_asin = ["B0D5BTBHBK", "B0DHRXRJ9X", "B0DG2MSMD2", "B0CW1LC1SP", "B07984JN3L"]
@@ -23,12 +22,7 @@ class Server:
 
     async def gen_products(self):
         try:
-            urls = await self.__get_product_urls(
-                max=2000,
-                product_urls=[],
-                index=0,
-                # url="https://www.amazon.com",
-            )
+            urls = await self.__get_product_urls()
             self.logger.info(str(len(urls)))
         except Exception as e:
             self.logger.info(f"Error getting product URLs: {e}")
@@ -40,7 +34,7 @@ class Server:
             self.logger.info(full_url)
 
             # Use the helper function to get the HTML content with retries
-            html = await self.__fetch_page_with_retry(full_url)
+            html = await fetch_page_with_retry(full_url)
             if not html:
                 self.logger.info(f"Skipping URL {full_url} due to repeated errors.")
                 continue
@@ -88,7 +82,11 @@ class Server:
             self.driver.close()
 
     async def __get_product_urls(
-        self, max: int, product_urls: list[str], index: int, url=BASE_AMAZON_URL
+        self,
+        max: int = 200,
+        product_urls: list[str] = [],
+        index: int = 0,
+        url=BASE_AMAZON_URL,
     ):
         """
         Will return an array of urls of amazon products
@@ -98,7 +96,7 @@ class Server:
                 return product_urls
 
             self.logger.info(f"Searching for products on the following page: {url}")
-            html = await self.__fetch_page_with_retry(url)
+            html = await fetch_page_with_retry(url)
             urls = html.find_all("a", href=re.compile(r"/(dp)/"))
             for url in urls:
                 asin = url["href"].split("/dp/")[1].split("/")[0]
@@ -117,11 +115,11 @@ class Server:
             self.logger.info(f"Error in __get_product_urls: {e}")
             return product_urls
 
-    def __scrape_review_page(self, asin: string):
+    def __scrape_review_page(self, asin: str):
         self.logger.info("ASIN: " + asin)
         try:
             link = BASE_REVIEW_URL + asin
-            html = self.__fetch_page_with_retry(link)
+            html = fetch_page_with_retry(link)
             product_name = html.find(attrs={"data-hook": "product-link"})
             self.logger.info(
                 "Product Name: " + (product_name.get_text() if product_name else "N/A")
@@ -210,7 +208,7 @@ class Server:
         except Exception as e:
             self.logger.info(f"Error scraping review page for ASIN {asin}: {e}")
 
-    async def __db_create_product(self, asin: string, name: string):
+    async def __db_create_product(self, asin: str, name: str):
         try:
             await self.conn.execute(
                 """
@@ -230,33 +228,3 @@ class Server:
             return values
         except Exception as e:
             self.logger.info(f"Error fetching products: {e}")
-
-    async def __fetch_page_with_retry(self, full_url, max_retries=10):
-        """Helper function to handle CAPTCHA retry logic."""
-        retry_count = 0
-
-        while retry_count < max_retries:
-            try:
-                self.driver.google_get(
-                    link=full_url, wait=Wait.SHORT, bypass_cloudflare=True
-                )
-                html = BeautifulSoup(self.driver.page_html, "html.parser")
-
-                # Check for CAPTCHA
-                if html.find(id="captchacharacters"):
-                    retry_count += 1
-                    self.logger.error(
-                        msg=f"BOT DETECTED... retrying {retry_count}/{max_retries}",
-                    )
-                    continue  # Retry the loop if CAPTCHA is detected
-
-                # Return HTML if no CAPTCHA
-                return html
-
-            except Exception as e:
-                self.logger.info(f"Error loading URL {full_url}: {e}")
-                return None  # Exit if there's another error
-
-        # Return None if max retries reached
-        self.logger.info(f"Max retries reached for {full_url}.")
-        return None

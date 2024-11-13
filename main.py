@@ -1,6 +1,7 @@
 from logging.handlers import RotatingFileHandler
 import os
 import asyncio
+import string
 import sys
 import asyncpg
 import logging
@@ -63,7 +64,7 @@ def create_driver():
     )
 
 
-async def execute_command(command, srv):
+async def execute_command(command: string, srv: Server):
     """Execute the command by directly awaiting it if it's a coroutine."""
     if command == "gen-reviews":
         await srv.gen_reviews()
