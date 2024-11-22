@@ -16,13 +16,7 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 
 There are two ways you can run the code. One for generating products and the other for generating reviews:
 
-1. Generating Products
-
-```python
-   python3 ./main.py gen-products
-```
-
-2. Generating Reviews
+1. Generating Reviews
 
 ```python
      python3 ./main.py gen-reviews
@@ -90,3 +84,8 @@ There are two ways you can run the code. One for generating products and the oth
     - [ ] Created At
     - [ ] Last Checked Product ID
 - [ ] Insert reviews into database
+- [ ] Pickle files
+- [ ] Add indicator columns:
+  - [ ] Source of data
+  - [ ] On the review level:
+    - [ ] Which filter got us there

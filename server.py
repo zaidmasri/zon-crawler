@@ -20,50 +20,6 @@ class Server:
         self.conn = db
         self.logger = logger
 
-    async def gen_products(self):
-        try:
-            urls = await self.__get_product_urls()
-            self.logger.info(str(len(urls)))
-        except Exception as e:
-            self.logger.info(f"Error getting product URLs: {e}")
-            urls = []
-
-        for url in urls:
-            full_url = BASE_AMAZON_URL + url
-            self.logger.info("Navigating to URL:")
-            self.logger.info(full_url)
-
-            # Use the helper function to get the HTML content with retries
-            html = await fetch_page_with_retry(full_url)
-            if not html:
-                self.logger.info(f"Skipping URL {full_url} due to repeated errors.")
-                continue
-
-            # Parsing data off page.
-            asin = html.find("input", id="ASIN", attrs={"type": "hidden"})
-            if asin:
-                self.logger.info("ASIN: " + asin["value"])
-            else:
-                self.logger.info("ASIN not found on page.")
-
-            product_name = html.find("span", {"id": "productTitle"})
-            if product_name:
-                self.logger.info(f"Product Name: {product_name.get_text()}")
-            else:
-                self.logger.info("Product name not found on page.")
-
-            # Adding to DB if both ASIN and product name are found
-            self.logger.info("Adding to DB")
-            if asin and product_name:
-                try:
-                    await self.__db_create_product(
-                        asin["value"],
-                        product_name.get_text(),
-                    )
-                    self.logger.info(f"ASIN: {asin["value"]} added to db.")
-                except Exception as e:
-                    self.logger.info(f"Error adding product to database: {e}")
-
     async def gen_reviews(self):
         """
         Uses __db_get_products().
@@ -207,19 +163,6 @@ class Server:
 
         except Exception as e:
             self.logger.info(f"Error scraping review page for ASIN {asin}: {e}")
-
-    async def __db_create_product(self, asin: str, name: str):
-        try:
-            await self.conn.execute(
-                """
-                    INSERT INTO products (asin, name) 
-                    VALUES ($1, $2)
-                """,
-                asin,
-                name,
-            )
-        except Exception as e:
-            self.logger.error(f"Error creating product with ASIN {asin}: {e}")
 
     async def __db_get_products(self):
         try:

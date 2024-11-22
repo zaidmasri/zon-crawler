@@ -254,3 +254,8 @@ $RECYCLE.BIN/
 
 .vscode
 app_logs.json
+data/**/*.zip
+data/**/*.pdf
+data/harvard/survey.csv
+data/harvard/fields.csv
+data/

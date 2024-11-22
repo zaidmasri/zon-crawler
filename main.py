@@ -68,8 +68,6 @@ async def execute_command(command: string, srv: Server):
     """Execute the command by directly awaiting it if it's a coroutine."""
     if command == "gen-reviews":
         await srv.gen_reviews()
-    elif command == "gen-products":
-        await srv.gen_products()
     else:
         logger.error("Unknown command:", command)
 
