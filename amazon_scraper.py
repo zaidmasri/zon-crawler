@@ -183,36 +183,51 @@ class AmazonScraper:
             print(f"Error scraping review page: {e}")
             return None
 
-    def scrape_product_reviews(self, asin):
-        amazon_filter = AmazonFilter()
-        url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={amazon_filter.sort_by}&pageNumber={amazon_filter.page_number}"
+    def scrape_product_reviews(self, asin, max_pages=10):
+        product = Product()  # Create a Product object to store all details
 
-        try:
-            response = requests.get(
-                url,
-                headers=self.headers,
-                cookies=self.cookies,
-            )
+        for sort_by in AmazonFilterSortBy:
+            print(f"Scraping reviews sorted by: {sort_by.value}")
+            for page_number in range(1, max_pages + 1):
+                print(f"Scraping page {page_number} for sort by {sort_by.value}")
+                url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={sort_by.value}&pageNumber={page_number}"
 
-            if response.status_code == 200:
-                # Debug: Save HTML to file
-                with open("./amazon_response.html", "w", encoding="utf-8") as f:
-                    f.write(response.text)
+                try:
+                    response = requests.get(
+                        url,
+                        headers=self.headers,
+                        cookies=self.cookies,
+                    )
 
-                print(f"Response status: {response.status_code}")
-                print(f"Response length: {len(response.text)}")
+                    if response.status_code == 200:
+                        print(f"Page {page_number} scraped successfully")
+                        page_product = self.scrape_review_page(response.text)
 
-                product = self.scrape_review_page(response.text)
-                if product:
-                    product.asin = asin
-                    return product
-                else:
-                    print("Failed to parse product data")
-            else:
-                print(f"Request failed with status code: {response.status_code}")
-                print("Response headers:", response.headers)
+                        if page_product:
+                            if not product.name:
+                                product.name = page_product.name
+                            if not product.asin:
+                                product.asin = asin
+                            if not product.overall_rating:
+                                product.overall_rating = page_product.overall_rating
+                            if not product.total_review_count:
+                                product.total_review_count = (
+                                    page_product.total_review_count
+                                )
 
-        except requests.exceptions.RequestException as e:
-            print(f"Error making request: {e}")
+                            # Add reviews from the current page
+                            product.review_list.extend(page_product.review_list)
+                        else:
+                            print(f"No reviews found on page {page_number}")
+                    else:
+                        print(
+                            f"Failed to fetch page {page_number}: Status code {response.status_code}"
+                        )
+                        break  # Exit loop if there's an issue with the page
 
-        return None
+                except requests.exceptions.RequestException as e:
+                    print(f"Request failed on page {page_number}: {e}")
+                    break  # Exit loop on request failure
+
+        print(f"Total reviews scraped: {len(product.review_list)}")
+        return product  # Return the Product object with all reviews
