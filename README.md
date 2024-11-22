@@ -10,17 +10,7 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 
 1. Install `pipenv` on your machine
 2. Run `pipenv install` in the root directory of the project
-3. Create a `.env` file. You can copy the `.env.example` file and fill in the variables for your postgres set DB.
-
-# Running Scripts
-
-There are two ways you can run the code. One for generating products and the other for generating reviews:
-
-1. Generating Reviews
-
-```python
-     python3 ./main.py gen-reviews
-```
+3. Create a `.env` file. You can copy the `.env.example` file and fill in the variables for your amazon session id and token.
 
 # Requirements:
 

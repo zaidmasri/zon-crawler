@@ -259,3 +259,5 @@ data/**/*.pdf
 data/harvard/survey.csv
 data/harvard/fields.csv
 data/
+**.json
+**.html
