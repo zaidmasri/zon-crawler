@@ -33,6 +33,7 @@ class Review:
         self.body = ""
         self.verified_purchase = False
         self.found_helpful = 0
+        self.url = ""
 
     def to_dict(self):
         return {
@@ -47,6 +48,7 @@ class Review:
             "body": self.body,
             "verified_purchase": self.verified_purchase,
             "found_helpful": self.found_helpful,
+            "url": self.url,
         }
 
 

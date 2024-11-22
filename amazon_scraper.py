@@ -146,7 +146,7 @@ class AmazonScraper:
             print(f"Error parsing review: {e}")
             return review
 
-    def scrape_review_page(self, page_content):
+    def scrape_review_page(self, page_content, url):
         product = Product()
 
         try:
@@ -187,6 +187,7 @@ class AmazonScraper:
             for review_element in review_elements:
                 review = self.parse_review(review_element)
                 if review:
+                    review.url = url
                     product.review_list.append(review)
 
             return product
@@ -218,7 +219,8 @@ class AmazonScraper:
                                 if response.status_code == 200:
                                     print(f"Page {page_number} scraped successfully")
                                     page_product = self.scrape_review_page(
-                                        response.text
+                                        page_content=response.text,
+                                        url=url
                                     )
 
                                     if page_product:
