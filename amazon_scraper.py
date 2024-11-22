@@ -11,6 +11,7 @@ class AmazonFilterMediaType(Enum):
     MEDIA_REVIEWS_ONLY = "media_reviews_only"
     ALL_CONTENTS = "all_contents"
 
+
 class AmazonFilterSortBy(Enum):
     RECENT = "recent"
     HELPFUL = "helpful"
@@ -111,7 +112,7 @@ class AmazonScraper:
                 )
 
             if title_element:
-                review.title = title_element.get_text().strip()
+                review.title = title_element.contents[3].get_text().strip()
                 review.href = title_element.get("href", "N/A")
 
             # Get review date and country
@@ -194,9 +195,8 @@ class AmazonScraper:
             print(f"Error scraping review page: {e}")
             return None
 
-    def scrape_product_reviews(self, asin, max_pages=10):
+    def scrape_product_reviews(self, asin, max_pages=1):
         product = Product()  # Create a Product object to store all details
-
         for sort_by in AmazonFilterSortBy:
             for star_rating in AmazonFilterStarRating:
                 for format_type in AmazonFilterFormatType:

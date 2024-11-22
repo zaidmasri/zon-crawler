@@ -12,7 +12,7 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 2. Run `pipenv install` in the root directory of the project
 3. Create a `.env` file. You can copy the `.env.example` file and fill in the variables for your amazon session id and token.
 
-# Requirements:
+# Requirements
 
 - [ ] Start Date for reviews = Oct, 1 2024
 - [ ] End Date for reviews = Nov, 2024 (Don't grab new reviews from either group)
