@@ -1,36 +1,19 @@
+from concurrent.futures import ThreadPoolExecutor
 import re
 import os
 import requests
-from enum import Enum
 from bs4 import BeautifulSoup
 from datetime import datetime
-from helpers import Product, Review, extract_float_from_phrase, extract_integer
-
-
-class AmazonFilterMediaType(Enum):
-    MEDIA_REVIEWS_ONLY = "media_reviews_only"
-    ALL_CONTENTS = "all_contents"
-
-
-class AmazonFilterSortBy(Enum):
-    RECENT = "recent"
-    HELPFUL = "helpful"
-
-
-class AmazonFilterStarRating(Enum):
-    ALL_STAR = "all_star"
-    FIVE_STAR = "five_star"
-    FOUR_STAR = "four_star"
-    THREE_STAR = "three_star"
-    TWO_STAR = "two_star"
-    ONE_STAR = "one_star"
-    POSITIVE = "positive"
-    CRITICAL = "critical"
-
-
-class AmazonFilterFormatType(Enum):
-    ALL_FORMATS = "all_formats"
-    CURRENT_FORMAT = "current_format"
+from helpers import (
+    Product,
+    Review,
+    AmazonFilterFormatType,
+    AmazonFilterMediaType,
+    AmazonFilterSortBy,
+    AmazonFilterStarRating,
+    extract_float_from_phrase,
+    extract_integer,
+)
 
 
 class AmazonScraper:
@@ -62,7 +45,7 @@ class AmazonScraper:
             "session-token": os.getenv("AMAZON_TOKEN"),
         }
 
-    def parse_review_date(self, date_text):
+    def __parse_review_date(self, date_text):
         if not date_text:
             return None
         try:
@@ -87,7 +70,7 @@ class AmazonScraper:
             print(f"Date parsing error: {e} for text: {date_text}")
         return None
 
-    def parse_review(self, review_element):
+    def __parse_review(self, review_element):
         review = Review()
 
         try:
@@ -118,7 +101,7 @@ class AmazonScraper:
             # Get review date and country
             date_element = review_element.find("span", {"data-hook": "review-date"})
             if date_element:
-                date_info = self.parse_review_date(date_element.get_text())
+                date_info = self.__parse_review_date(date_element.get_text())
                 if date_info:
                     review.country = date_info["country"]
                     review.date = date_info["date"]
@@ -146,7 +129,7 @@ class AmazonScraper:
             print(f"Error parsing review: {e}")
             return review
 
-    def scrape_review_page(self, page_content, url):
+    def __scrape_review_page(self, page_content, url):
         product = Product()
 
         try:
@@ -185,7 +168,7 @@ class AmazonScraper:
             print(f"Found {len(review_elements)} review elements")
 
             for review_element in review_elements:
-                review = self.parse_review(review_element)
+                review = self.__parse_review(review_element)
                 if review:
                     review.url = url
                     product.review_list.append(review)
@@ -196,7 +179,7 @@ class AmazonScraper:
             print(f"Error scraping review page: {e}")
             return None
 
-    def scrape_product_reviews(self, asin, max_pages=1):
+    def __scrape_product_reviews(self, asin, max_pages=1):
         product = Product()  # Create a Product object to store all details
         for sort_by in AmazonFilterSortBy:
             for star_rating in AmazonFilterStarRating:
@@ -218,9 +201,8 @@ class AmazonScraper:
 
                                 if response.status_code == 200:
                                     print(f"Page {page_number} scraped successfully")
-                                    page_product = self.scrape_review_page(
-                                        page_content=response.text,
-                                        url=url
+                                    page_product = self.__scrape_review_page(
+                                        page_content=response.text, url=url
                                     )
 
                                     if page_product:
@@ -255,3 +237,22 @@ class AmazonScraper:
 
         print(f"Total reviews scraped: {len(product.review_list)}")
         return product  # Return the Product object with all reviews
+
+    # Run the scraping concurrently
+    def scrape_asins_concurrently(self, asins: list[str]):
+        results = []
+        with ThreadPoolExecutor(
+            max_workers=5
+        ) as executor:  # Adjust the number of workers as needed
+            future_to_asin = {
+                executor.submit(self.__scrape_product_reviews, asin): asin
+                for asin in asins
+            }
+            for future in future_to_asin:
+                asin = future_to_asin[future]
+                try:
+                    result = future.result()
+                    results.append(result.to_dict())
+                except Exception as e:
+                    print(f"Unhandled error for ASIN {asin}: {e}")
+        return results

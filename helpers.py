@@ -1,4 +1,5 @@
 import re
+from enum import Enum
 
 
 def extract_integer(s):
@@ -76,3 +77,29 @@ class Product:
                 review.to_dict() for review in self.review_list
             ],  # Convert reviews to dicts
         }
+
+
+class AmazonFilterMediaType(Enum):
+    MEDIA_REVIEWS_ONLY = "media_reviews_only"
+    ALL_CONTENTS = "all_contents"
+
+
+class AmazonFilterSortBy(Enum):
+    RECENT = "recent"
+    HELPFUL = "helpful"
+
+
+class AmazonFilterStarRating(Enum):
+    ALL_STAR = "all_star"
+    FIVE_STAR = "five_star"
+    FOUR_STAR = "four_star"
+    THREE_STAR = "three_star"
+    TWO_STAR = "two_star"
+    ONE_STAR = "one_star"
+    POSITIVE = "positive"
+    CRITICAL = "critical"
+
+
+class AmazonFilterFormatType(Enum):
+    ALL_FORMATS = "all_formats"
+    CURRENT_FORMAT = "current_format"
