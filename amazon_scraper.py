@@ -1,9 +1,24 @@
 import re
 import os
 import requests
+from enum import Enum
 from bs4 import BeautifulSoup
 from datetime import datetime
 from helpers import Product, Review, extract_float_from_phrase, extract_integer
+
+
+class AmazonFilterSortBy(Enum):
+    RECENT = "recent"
+    HELPFUL = "helpful"
+
+
+class AmazonFilter:
+    page_number: int
+    sort_by: AmazonFilterSortBy
+
+    def __init__(self):
+        self.page_number = 1
+        self.sort_by = AmazonFilterSortBy.HELPFUL
 
 
 class AmazonScraper:
@@ -44,17 +59,17 @@ class AmazonScraper:
             if match:
                 date_str = match.group(2)
                 return {
-                    'country': match.group(1),
-                    'date': datetime.strptime(date_str, '%B %d, %Y')
+                    "country": match.group(1),
+                    "date": datetime.strptime(date_str, "%B %d, %Y"),
                 }
-            
+
             # Try alternate format if standard fails
             match = re.search(r"Reviewed on (.+)", date_text)
             if match:
                 date_str = match.group(1)
                 return {
-                    'country': 'Unknown',
-                    'date': datetime.strptime(date_str, '%B %d, %Y')
+                    "country": "Unknown",
+                    "date": datetime.strptime(date_str, "%B %d, %Y"),
                 }
         except ValueError as e:
             print(f"Date parsing error: {e} for text: {date_text}")
@@ -62,103 +77,116 @@ class AmazonScraper:
 
     def parse_review(self, review_element):
         review = Review()
-        
+
         try:
             review.id = review_element.get("id", "N/A")
-            
+
             # Get review title and rating
-            rating_element = review_element.find("i", {"data-hook": "review-star-rating"})
+            rating_element = review_element.find(
+                "i", {"data-hook": "review-star-rating"}
+            )
             if not rating_element:
-                rating_element = review_element.find("i", {"data-hook": "cmps-review-star-rating"})
-            
+                rating_element = review_element.find(
+                    "i", {"data-hook": "cmps-review-star-rating"}
+                )
+
             if rating_element:
                 review.rating = extract_float_from_phrase(rating_element.get_text())
-            
+
             title_element = review_element.find("a", {"data-hook": "review-title"})
             if not title_element:
-                title_element = review_element.find("span", {"data-hook": "review-title"})
-            
+                title_element = review_element.find(
+                    "span", {"data-hook": "review-title"}
+                )
+
             if title_element:
                 review.title = title_element.get_text().strip()
                 review.href = title_element.get("href", "N/A")
-            
+
             # Get review date and country
             date_element = review_element.find("span", {"data-hook": "review-date"})
             if date_element:
                 date_info = self.parse_review_date(date_element.get_text())
                 if date_info:
-                    review.country = date_info['country']
-                    review.date = date_info['date']
-            
+                    review.country = date_info["country"]
+                    review.date = date_info["date"]
+
             # Get review body
             body_element = review_element.find("span", {"data-hook": "review-body"})
             if body_element:
                 review.body = body_element.get_text().strip()
-            
+
             # Check if verified purchase
             verified_element = review_element.find("span", {"data-hook": "avp-badge"})
             review.verified_purchase = bool(verified_element)
-            
+
             # Get helpful votes
-            helpful_element = review_element.find("span", {"data-hook": "helpful-vote-statement"})
+            helpful_element = review_element.find(
+                "span", {"data-hook": "helpful-vote-statement"}
+            )
             if helpful_element:
                 helpful_text = helpful_element.get_text()
                 review.found_helpful = extract_integer(helpful_text) or 0
-                
+
             return review
-            
+
         except Exception as e:
             print(f"Error parsing review: {e}")
             return review
 
     def scrape_review_page(self, page_content):
         product = Product()
-        
+
         try:
             html = BeautifulSoup(page_content, "html.parser")
-            
+
             # Debug print
             print("HTML length:", len(page_content))
-            
+
             # Get product name
             product_element = html.find("a", {"data-hook": "product-link"})
             if product_element:
                 product.name = product_element.get_text().strip()
             else:
                 print("Product name element not found")
-            
+
             # Get overall rating
             rating_element = html.find("span", {"data-hook": "rating-out-of-text"})
             if rating_element:
-                product.overall_rating = extract_float_from_phrase(rating_element.get_text())
+                product.overall_rating = extract_float_from_phrase(
+                    rating_element.get_text()
+                )
             else:
                 print("Rating element not found")
-            
+
             # Get total review count
             review_count_element = html.find("div", {"data-hook": "total-review-count"})
             if review_count_element:
-                product.total_review_count = extract_integer(review_count_element.get_text())
+                product.total_review_count = extract_integer(
+                    review_count_element.get_text()
+                )
             else:
                 print("Review count element not found")
-            
+
             # Parse each review
             review_elements = html.find_all("div", {"data-hook": "review"})
             print(f"Found {len(review_elements)} review elements")
-            
+
             for review_element in review_elements:
                 review = self.parse_review(review_element)
                 if review:
                     product.review_list.append(review)
-            
+
             return product
-            
+
         except Exception as e:
             print(f"Error scraping review page: {e}")
             return None
 
     def scrape_product_reviews(self, asin):
-        url = f"https://www.amazon.com/product-reviews/{asin}"
-        
+        amazon_filter = AmazonFilter()
+        url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={amazon_filter.sort_by}&pageNumber={amazon_filter.page_number}"
+
         try:
             response = requests.get(
                 url,
@@ -168,12 +196,12 @@ class AmazonScraper:
 
             if response.status_code == 200:
                 # Debug: Save HTML to file
-                with open('./amazon_response.html', 'w', encoding='utf-8') as f:
+                with open("./amazon_response.html", "w", encoding="utf-8") as f:
                     f.write(response.text)
-                
+
                 print(f"Response status: {response.status_code}")
                 print(f"Response length: {len(response.text)}")
-                
+
                 product = self.scrape_review_page(response.text)
                 if product:
                     product.asin = asin
@@ -183,9 +211,8 @@ class AmazonScraper:
             else:
                 print(f"Request failed with status code: {response.status_code}")
                 print("Response headers:", response.headers)
-                
+
         except requests.exceptions.RequestException as e:
             print(f"Error making request: {e}")
-        
-        return None
 
+        return None
