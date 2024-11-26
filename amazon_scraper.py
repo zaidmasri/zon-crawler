@@ -1,9 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
-import re
 import os
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
 from helpers import (
     Product,
     Review,
@@ -13,6 +11,7 @@ from helpers import (
     AmazonFilterStarRating,
     extract_float_from_phrase,
     extract_integer,
+    parse_review_date_and_country,
 )
 
 
@@ -45,36 +44,11 @@ class AmazonScraper:
             "session-token": os.getenv("AMAZON_TOKEN"),
         }
 
-    def __parse_review_date(self, date_text):
-        if not date_text:
-            return None
-        try:
-            # First try the standard format
-            match = re.search(r"Reviewed in (.+?) on (.+)", date_text)
-            if match:
-                date_str = match.group(2)
-                return {
-                    "country": match.group(1),
-                    "date": datetime.strptime(date_str, "%B %d, %Y"),
-                }
-
-            # Try alternate format if standard fails
-            match = re.search(r"Reviewed on (.+)", date_text)
-            if match:
-                date_str = match.group(1)
-                return {
-                    "country": "Unknown",
-                    "date": datetime.strptime(date_str, "%B %d, %Y"),
-                }
-        except ValueError as e:
-            print(f"Date parsing error: {e} for text: {date_text}")
-        return None
-
     def __parse_review(self, review_element):
         review = Review()
 
         try:
-            review.id = review_element.get("id", "N/A")
+            review.id = review_element.get("id", None)
 
             # Get review title and rating
             rating_element = review_element.find(
@@ -95,13 +69,16 @@ class AmazonScraper:
                 )
 
             if title_element:
-                review.title = title_element.contents[3].get_text().strip()
-                review.href = title_element.get("href", "N/A")
+                review.href = title_element.get("href", None)
+                if review.href:
+                    review.title = title_element.contents[3].get_text().strip()
+                else:
+                    review.title = title_element.get_text().strip()
 
             # Get review date and country
             date_element = review_element.find("span", {"data-hook": "review-date"})
             if date_element:
-                date_info = self.__parse_review_date(date_element.get_text())
+                date_info = parse_review_date_and_country(date_element.get_text())
                 if date_info:
                     review.country = date_info["country"]
                     review.date = date_info["date"]
@@ -136,7 +113,7 @@ class AmazonScraper:
             html = BeautifulSoup(page_content, "html.parser")
 
             # Debug print
-            print("HTML length:", len(page_content))
+            # print("HTML length:", len(page_content))
 
             # Get product name
             product_element = html.find("a", {"data-hook": "product-link"})
@@ -165,12 +142,11 @@ class AmazonScraper:
 
             # Parse each review
             review_elements = html.find_all("div", {"data-hook": "review"})
-            print(f"Found {len(review_elements)} review elements")
-
+            # print(f"Found {len(review_elements)} review elements")
             for review_element in review_elements:
                 review = self.__parse_review(review_element)
                 if review:
-                    review.url = url
+                    review.product_url = url
                     product.review_list.append(review)
 
             return product
@@ -179,19 +155,19 @@ class AmazonScraper:
             print(f"Error scraping review page: {e}")
             return None
 
-    def __scrape_product_reviews(self, asin, max_pages=1):
+    def __scrape_product_reviews(self, asin, max_pages=10):
         product = Product()  # Create a Product object to store all details
         for sort_by in AmazonFilterSortBy:
             for star_rating in AmazonFilterStarRating:
                 for format_type in AmazonFilterFormatType:
                     for media_type in AmazonFilterMediaType:
-                        print(f"Scraping reviews sorted by: {sort_by.value}")
+                        # print(f"Scraping reviews sorted by: {sort_by.value}")
                         for page_number in range(1, max_pages + 1):
-                            print(
-                                f"Scraping page {page_number} for sort by {sort_by.value} and star rating {star_rating.value} and format type {format_type.value}"
-                            )
+                            # print(
+                            #     f"Scraping page {page_number} for sort by {sort_by.value} and star rating {star_rating.value} and format type {format_type.value}"
+                            # )
                             url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={sort_by.value}&pageNumber={page_number}&filterByStar={star_rating.value}&formatType={format_type.value}&mediaType={media_type.value}"
-                            print(f"URL: {url}")
+                            # print(f"URL: {url}")
                             try:
                                 response = requests.get(
                                     url,
@@ -200,7 +176,7 @@ class AmazonScraper:
                                 )
 
                                 if response.status_code == 200:
-                                    print(f"Page {page_number} scraped successfully")
+                                    # print(f"Page {page_number} scraped successfully")
                                     page_product = self.__scrape_review_page(
                                         page_content=response.text, url=url
                                     )
@@ -218,7 +194,9 @@ class AmazonScraper:
                                             product.total_review_count = (
                                                 page_product.total_review_count
                                             )
-
+                                        if len(page_product.review_list) == 0:
+                                            # print("No reviews found.")
+                                            continue
                                         # Add reviews from the current page
                                         product.review_list.extend(
                                             page_product.review_list
@@ -242,7 +220,8 @@ class AmazonScraper:
     def scrape_asins_concurrently(self, asins: list[str]):
         results = []
         with ThreadPoolExecutor(
-            max_workers=5
+            # max_workers=5
+            max_workers=1
         ) as executor:  # Adjust the number of workers as needed
             future_to_asin = {
                 executor.submit(self.__scrape_product_reviews, asin): asin

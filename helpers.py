@@ -1,3 +1,4 @@
+from datetime import datetime
 import re
 from enum import Enum
 
@@ -23,6 +24,31 @@ def extract_float_from_phrase(s):
         return None
 
 
+def parse_review_date_and_country(date_text):
+    if not date_text:
+        return None
+    try:
+        # First try the standard format
+        match = re.search(r"Reviewed in (.+?) on (.+)", date_text)
+        if match:
+            date_str = match.group(2)
+            return {
+                "country": match.group(1),
+                "date": datetime.strptime(date_str, "%B %d, %Y"),
+            }
+
+        # Try alternate format if standard fails
+        match = re.search(r"Reviewed on (.+)", date_text)
+        if match:
+            date_str = match.group(1)
+            return {
+                "country": "Unknown",
+                "date": datetime.strptime(date_str, "%B %d, %Y"),
+            }
+    except ValueError as e:
+        print(f"Date parsing error: {e} for text: {date_text}")
+    return None
+
 class Review:
     def __init__(self):
         self.id = ""
@@ -34,7 +60,7 @@ class Review:
         self.body = ""
         self.verified_purchase = False
         self.found_helpful = 0
-        self.url = ""
+        self.product_url = ""
 
     def to_dict(self):
         return {
@@ -49,7 +75,7 @@ class Review:
             "body": self.body,
             "verified_purchase": self.verified_purchase,
             "found_helpful": self.found_helpful,
-            "url": self.url,
+            "product_url": self.product_url,
         }
 
 
