@@ -3,8 +3,6 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from helpers import (
-    Product,
-    Review,
     AmazonFilterFormatType,
     AmazonFilterMediaType,
     AmazonFilterSortBy,
@@ -13,7 +11,8 @@ from helpers import (
     extract_integer,
     parse_review_date_and_country,
 )
-
+from amazon_product import AmazonProduct
+from amazon_review import AmazonReview
 
 class AmazonScraper:
     def __init__(self):
@@ -45,7 +44,7 @@ class AmazonScraper:
         }
 
     def __parse_review(self, review_element):
-        review = Review()
+        review = AmazonReview()
 
         try:
             review.id = review_element.get("id", None)
@@ -107,7 +106,7 @@ class AmazonScraper:
             return review
 
     def __scrape_review_page(self, page_content, url):
-        product = Product()
+        product = AmazonProduct()
 
         try:
             html = BeautifulSoup(page_content, "html.parser")
@@ -156,7 +155,7 @@ class AmazonScraper:
             return None
 
     def __scrape_product_reviews(self, asin, max_pages=10):
-        product = Product()  # Create a Product object to store all details
+        product = AmazonProduct()  # Create a Product object to store all details
         for sort_by in AmazonFilterSortBy:
             for star_rating in AmazonFilterStarRating:
                 for format_type in AmazonFilterFormatType:
