@@ -3,9 +3,9 @@ import time
 from amazon_scraper import AmazonScraper
 
 start_time = time.time()
-# asins = ["0596514522", "0609806483", "0071455531", "0764120964", "1853672831"]
-# asins = ["B0CT3Y5LL9"]
-asins = ["B084TM4XKG"]
+# asins = ["0596514522", "0609806483", "0071455531", "0764120964", "1853672831"] # concurrent
+# asins = ["B0CT3Y5LL9"] # image test
+asins = ["B084TM4XKG"]  # video test
 az = AmazonScraper()
 rtn = az.scrape_asins_concurrently(asins)
 print(json.dumps(rtn, indent=4))

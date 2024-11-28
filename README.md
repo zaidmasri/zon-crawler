@@ -19,13 +19,14 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 
 - [x] Verified Purchase
 - [x] Found Helpful
-- [ ] Iterate over all review pages
-  - [ ] changing the filter input
+- [x] Iterate over all review pages
+  - [x] changing the filter input
   - [ ] check if review is recorded already and within start and end date requirements
-- [ ] If Pictures Exist
-- [ ] If Video Exist
-- [ ] Grab Links for Picture
+- [x] If Pictures Exist
+- [x] If Video Exist
+- [x] Grab Links for Picture
 - [ ] Grab Links for Video
+  - [ ] Check if multiple videos exist on a single review
 - [x] Product Overall Rating
   - [x] Convert to float
 - [x] Review ID
