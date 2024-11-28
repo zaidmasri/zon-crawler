@@ -10,6 +10,8 @@ class AmazonReview:
         self.verified_purchase = False
         self.found_helpful = 0
         self.product_url = ""
+        self.username = ""
+        self.username_url = ""
         self.images = []
         self.videos = []
 
@@ -27,6 +29,8 @@ class AmazonReview:
             "verified_purchase": self.verified_purchase,
             "found_helpful": self.found_helpful,
             "product_url": self.product_url,
+            "username": self.username,
+            "username_url": self.username_url,
             "images": self.images,
             "videos": self.videos,
         }

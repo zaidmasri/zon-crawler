@@ -100,7 +100,12 @@ class AmazonScraper:
             if helpful_element:
                 helpful_text = helpful_element.get_text()
                 review.found_helpful = extract_integer(helpful_text) or 0
-
+            username_element = review_element.find("span", {"class": "a-profile-name"})
+            if username_element:
+                review.username = username_element.get_text()
+                username_url = username_element.findParent("a")
+                if username_url:
+                    review.username_url = username_url.get("href", None)
             image_elements = review_element.find_all(
                 "img", {"data-hook": "review-image-tile"}
             )
