@@ -14,6 +14,7 @@ from helpers import (
 from amazon_product import AmazonProduct
 from amazon_review import AmazonReview
 
+
 class AmazonScraper:
     def __init__(self):
         self.headers = {
@@ -44,6 +45,7 @@ class AmazonScraper:
         }
 
     def __parse_review(self, review_element):
+
         review = AmazonReview()
 
         try:
@@ -98,6 +100,26 @@ class AmazonScraper:
             if helpful_element:
                 helpful_text = helpful_element.get_text()
                 review.found_helpful = extract_integer(helpful_text) or 0
+
+            images_element = review_element.find_all(
+                "img", {"data-hook": "review-image-tile"}
+            )
+
+            if images_element:
+                for element in images_element:
+                    src = element.get("src", None)
+                    if src:
+                        review.images.append(src)
+
+            other_countries_images_element = review_element.find_all(
+                "img", {"data-hook": "cmps-review-image-tile"}
+            )
+            
+            if other_countries_images_element:
+                for element in other_countries_images_element:
+                    src = element.get("src", None)
+                    if src:
+                        review.images.append(src)
 
             return review
 
@@ -204,7 +226,7 @@ class AmazonScraper:
                                         print(f"No reviews found on page {page_number}")
                                 else:
                                     print(
-                                        f"Failed to fetch page {page_number}: Status code {response.status_code}"
+                                        f"Failed to fetch page {url}: Status code {response.status_code}"
                                     )
                                     break  # Exit loop if there's an issue with the page
 

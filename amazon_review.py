@@ -10,6 +10,8 @@ class AmazonReview:
         self.verified_purchase = False
         self.found_helpful = 0
         self.product_url = ""
+        self.images = []
+        self.videos = []
 
     def to_dict(self):
         return {
@@ -25,4 +27,6 @@ class AmazonReview:
             "verified_purchase": self.verified_purchase,
             "found_helpful": self.found_helpful,
             "product_url": self.product_url,
+            "images": self.images,
+            "videos": self.videos,
         }
