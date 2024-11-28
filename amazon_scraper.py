@@ -44,7 +44,7 @@ class AmazonScraper:
             "session-token": os.getenv("AMAZON_TOKEN"),
         }
 
-    def __parse_review(self, review_element):
+    def __parse_review(self, review_element: BeautifulSoup):
 
         review = AmazonReview()
 
@@ -101,25 +101,33 @@ class AmazonScraper:
                 helpful_text = helpful_element.get_text()
                 review.found_helpful = extract_integer(helpful_text) or 0
 
-            images_element = review_element.find_all(
+            image_elements = review_element.find_all(
                 "img", {"data-hook": "review-image-tile"}
             )
 
-            if images_element:
-                for element in images_element:
+            if image_elements:
+                for element in image_elements:
                     src = element.get("src", None)
                     if src:
                         review.images.append(src)
 
-            other_countries_images_element = review_element.find_all(
+            other_countries_images_elements = review_element.find_all(
                 "img", {"data-hook": "cmps-review-image-tile"}
             )
-            
-            if other_countries_images_element:
-                for element in other_countries_images_element:
+
+            if other_countries_images_elements:
+                for element in other_countries_images_elements:
                     src = element.get("src", None)
                     if src:
                         review.images.append(src)
+
+            video_elements = body_element.find_all("div", {"data-review-id": review.id})
+
+            if video_elements:
+                for element in video_elements:
+                    src = element.get("data-video-url", None)
+                    if src:
+                        review.videos.append(src)
 
             return review
 
@@ -241,8 +249,8 @@ class AmazonScraper:
     def scrape_asins_concurrently(self, asins: list[str]):
         results = []
         with ThreadPoolExecutor(
-            # max_workers=5
-            max_workers=1
+            max_workers=5
+            # max_workers=1
         ) as executor:  # Adjust the number of workers as needed
             future_to_asin = {
                 executor.submit(self.__scrape_product_reviews, asin): asin
