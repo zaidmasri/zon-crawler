@@ -1,7 +1,10 @@
-from concurrent.futures import ThreadPoolExecutor
 import os
-import requests
+import ssl
 from bs4 import BeautifulSoup
+import asyncio
+import aiohttp
+from typing import Optional, Dict, List
+from dataclasses import dataclass
 from helpers import (
     AmazonFilterFormatType,
     AmazonFilterMediaType,
@@ -15,13 +18,31 @@ from amazon_product import AmazonProduct
 from amazon_review import AmazonReview
 
 
+@dataclass
+class ScrapingConfig:
+    max_pages: int = 10
+    max_workers: int = 5
+    max_concurrent_requests: int = 3
+    request_timeout: int = 30
+    retry_attempts: int = 3
+    retry_delay: int = 1
+
+
 class AmazonScraper:
-    def __init__(self):
+    def __init__(self, config: Optional[ScrapingConfig] = None):
+        self.config = config or ScrapingConfig()
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        self.session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=ssl_context)
+        )
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
         }
         self.cookies = {
             "session-id": os.getenv("AMAZON_SESSION_ID"),
+            "session-token": os.getenv("AMAZON_TOKEN"),
             "i18n-prefs": "USD",
             "skin": "noskin",
             "ubid-main": "132-8139505-0179230",
@@ -41,15 +62,24 @@ class AmazonScraper:
             "s_ips": "1134",
             "s_cc": "true",
             "AMCV_4A8581745834114C0A495E2B%40AdobeOrg": "179643557%7CMCIDTS%7C20049%7CMCMID%7C80552200343015942363501208162927885838%7CMCAAMLH-1732807500%7C9%7CMCAAMB-1732807500%7CRKhpRz8krg2tLO6pguXWp5olkAcUniQYPHaMWWgdJ3xzPWQmdj0y%7CMCOPTOUT-1732209901s%7CNONE%7CMCAID%7CNONE%7CvVersion%7C5.5.0",
-            "session-token": os.getenv("AMAZON_TOKEN"),
         }
+        self._review_cache = {}
 
-    def __parse_review(self, review_element: BeautifulSoup):
+    async def __aenter__(self):
+        return self
 
-        review = AmazonReview()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.session.close()
 
+    def _parse_review(self, review_element: BeautifulSoup) -> Optional[AmazonReview]:
+        """Parse a single review"""
         try:
-            review.id = review_element.get("id", None)
+            review = AmazonReview()
+
+            # Get review ID
+            review.id = review_element.get("id")
+            if not review.id:
+                return None
 
             # Get review title and rating
             rating_element = review_element.find(
@@ -59,20 +89,21 @@ class AmazonScraper:
                 rating_element = review_element.find(
                     "i", {"data-hook": "cmps-review-star-rating"}
                 )
-
             if rating_element:
                 review.rating = extract_float_from_phrase(rating_element.get_text())
 
+            # Get title
             title_element = review_element.find("a", {"data-hook": "review-title"})
             if not title_element:
                 title_element = review_element.find(
                     "span", {"data-hook": "review-title"}
                 )
-
             if title_element:
-                review.href = title_element.get("href", None)
+                review.href = title_element.get("href")
                 if review.href:
-                    review.title = title_element.contents[3].get_text().strip()
+                    spans = title_element.find_all("span")
+                    if spans and len(spans) > 3:
+                        review.title = spans[3].get_text().strip()
                 else:
                     review.title = title_element.get_text().strip()
 
@@ -98,174 +129,136 @@ class AmazonScraper:
                 "span", {"data-hook": "helpful-vote-statement"}
             )
             if helpful_element:
-                helpful_text = helpful_element.get_text()
-                review.found_helpful = extract_integer(helpful_text) or 0
+                review.found_helpful = extract_integer(helpful_element.get_text()) or 0
+
+            # Get username
             username_element = review_element.find("span", {"class": "a-profile-name"})
             if username_element:
                 review.username = username_element.get_text()
-                username_url = username_element.findParent("a")
+                username_url = username_element.find_parent("a")
                 if username_url:
-                    review.username_url = username_url.get("href", None)
+                    review.username_url = username_url.get("href")
+
+            # Get images
             image_elements = review_element.find_all(
                 "img", {"data-hook": "review-image-tile"}
             )
-
             if image_elements:
                 for element in image_elements:
-                    src = element.get("src", None)
+                    src = element.get("src")
                     if src:
                         review.images.append(src)
 
             other_countries_images_elements = review_element.find_all(
                 "img", {"data-hook": "cmps-review-image-tile"}
             )
-
             if other_countries_images_elements:
                 for element in other_countries_images_elements:
-                    src = element.get("src", None)
+                    src = element.get("src")
                     if src:
                         review.images.append(src)
 
-            video_elements = body_element.find_all("div", {"data-review-id": review.id})
-
-            if video_elements:
-                for element in video_elements:
-                    src = element.get("data-video-url", None)
-                    if src:
-                        review.videos.append(src)
+            # Get videos
+            if body_element:
+                video_elements = body_element.find_all(
+                    "div", {"data-review-id": review.id}
+                )
+                if video_elements:
+                    for element in video_elements:
+                        src = element.get("data-video-url")
+                        if src:
+                            review.videos.append(src)
 
             return review
 
         except Exception as e:
             print(f"Error parsing review: {e}")
-            return review
-
-    def __scrape_review_page(self, page_content, url):
-        product = AmazonProduct()
-
-        try:
-            html = BeautifulSoup(page_content, "html.parser")
-
-            # Debug print
-            # print("HTML length:", len(page_content))
-
-            # Get product name
-            product_element = html.find("a", {"data-hook": "product-link"})
-            if product_element:
-                product.name = product_element.get_text().strip()
-            else:
-                print("Product name element not found")
-
-            # Get overall rating
-            rating_element = html.find("span", {"data-hook": "rating-out-of-text"})
-            if rating_element:
-                product.overall_rating = extract_float_from_phrase(
-                    rating_element.get_text()
-                )
-            else:
-                print("Rating element not found")
-
-            # Get total review count
-            review_count_element = html.find("div", {"data-hook": "total-review-count"})
-            if review_count_element:
-                product.total_review_count = extract_integer(
-                    review_count_element.get_text()
-                )
-            else:
-                print("Review count element not found")
-
-            # Parse each review
-            review_elements = html.find_all("div", {"data-hook": "review"})
-            # print(f"Found {len(review_elements)} review elements")
-            for review_element in review_elements:
-                review = self.__parse_review(review_element)
-                if review:
-                    review.product_url = url
-                    product.review_list.append(review)
-
-            return product
-
-        except Exception as e:
-            print(f"Error scraping review page: {e}")
             return None
 
-    def __scrape_product_reviews(self, asin, max_pages=10):
-        product = AmazonProduct()  # Create a Product object to store all details
+    async def _fetch_page(self, url: str) -> Optional[str]:
+        """Fetch a single page with retry logic and rate limiting"""
+        for attempt in range(self.config.retry_attempts):
+            try:
+                async with self.session.get(
+                    url,
+                    headers=self.headers,
+                    cookies=self.cookies,
+                    timeout=self.config.request_timeout,
+                ) as response:
+                    if response.status == 200:
+                        return await response.text()
+                    elif response.status == 429:
+                        await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                        continue
+                    else:
+                        print(f"Failed to fetch {url}: Status {response.status}")
+                        return None
+            except Exception as e:
+                print(f"Error fetching {url}: {e}")
+                if attempt < self.config.retry_attempts - 1:
+                    await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                    continue
+        return None
+
+    async def _scrape_product_reviews(self, asin: str) -> AmazonProduct:
+        product = AmazonProduct()
+        product.asin = asin
+
+        tasks = []
         for sort_by in AmazonFilterSortBy:
             for star_rating in AmazonFilterStarRating:
                 for format_type in AmazonFilterFormatType:
                     for media_type in AmazonFilterMediaType:
-                        # print(f"Scraping reviews sorted by: {sort_by.value}")
-                        for page_number in range(1, max_pages + 1):
-                            # print(
-                            #     f"Scraping page {page_number} for sort by {sort_by.value} and star rating {star_rating.value} and format type {format_type.value}"
-                            # )
+                        for page_number in range(1, self.config.max_pages + 1):
                             url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={sort_by.value}&pageNumber={page_number}&filterByStar={star_rating.value}&formatType={format_type.value}&mediaType={media_type.value}"
-                            # print(f"URL: {url}")
-                            try:
-                                response = requests.get(
-                                    url,
-                                    headers=self.headers,
-                                    cookies=self.cookies,
-                                )
+                            tasks.append(self._fetch_page(url))
 
-                                if response.status_code == 200:
-                                    # print(f"Page {page_number} scraped successfully")
-                                    page_product = self.__scrape_review_page(
-                                        page_content=response.text, url=url
-                                    )
+        pages = await asyncio.gather(*tasks)
 
-                                    if page_product:
-                                        if not product.name:
-                                            product.name = page_product.name
-                                        if not product.asin:
-                                            product.asin = asin
-                                        if not product.overall_rating:
-                                            product.overall_rating = (
-                                                page_product.overall_rating
-                                            )
-                                        if not product.total_review_count:
-                                            product.total_review_count = (
-                                                page_product.total_review_count
-                                            )
-                                        if len(page_product.review_list) == 0:
-                                            # print("No reviews found.")
-                                            continue
-                                        # Add reviews from the current page
-                                        product.review_list.extend(
-                                            page_product.review_list
-                                        )
-                                    else:
-                                        print(f"No reviews found on page {page_number}")
-                                else:
-                                    print(
-                                        f"Failed to fetch page {url}: Status code {response.status_code}"
-                                    )
-                                    break  # Exit loop if there's an issue with the page
+        for page_content in pages:
+            if page_content:
+                soup = BeautifulSoup(page_content, "html.parser")
 
-                            except requests.exceptions.RequestException as e:
-                                print(f"Request failed on page {page_number}: {e}")
-                                break  # Exit loop on request failure
+                # Update product info if not already set
+                if not product.name:
+                    product_element = soup.find("a", {"data-hook": "product-link"})
+                    if product_element:
+                        product.name = product_element.get_text().strip()
 
-        print(f"Total reviews scraped: {len(product.review_list)}")
-        return product  # Return the Product object with all reviews
+                if not product.overall_rating:
+                    rating_element = soup.find(
+                        "span", {"data-hook": "rating-out-of-text"}
+                    )
+                    if rating_element:
+                        product.overall_rating = extract_float_from_phrase(
+                            rating_element.get_text()
+                        )
 
-    # Run the scraping concurrently
-    def scrape_asins_concurrently(self, asins: list[str]):
-        results = []
-        with ThreadPoolExecutor(
-            max_workers=5
-            # max_workers=1
-        ) as executor:  # Adjust the number of workers as needed
-            future_to_asin = {
-                executor.submit(self.__scrape_product_reviews, asin): asin
-                for asin in asins
-            }
-            for future in future_to_asin:
-                asin = future_to_asin[future]
-                try:
-                    result = future.result()
-                    results.append(result.to_dict())
-                except Exception as e:
-                    print(f"Unhandled error for ASIN {asin}: {e}")
-        return results
+                if not product.total_review_count:
+                    review_count_element = soup.find(
+                        "div", {"data-hook": "total-review-count"}
+                    )
+                    if review_count_element:
+                        product.total_review_count = extract_integer(
+                            review_count_element.get_text()
+                        )
+
+                # Parse reviews
+                review_elements = soup.find_all("div", {"data-hook": "review"})
+                for review_element in review_elements:
+                    review = self._parse_review(review_element)
+                    if review and review.id not in self._review_cache:
+                        self._review_cache[review.id] = True
+                        product.review_list.append(review)
+
+        print(f"Found {len(product.review_list)} unique reviews for ASIN {asin}")
+        return product
+
+    async def scrape_asins(self, asins: List[str]) -> List[Dict]:
+        tasks = [self._scrape_product_reviews(asin) for asin in asins]
+        products = await asyncio.gather(*tasks)
+        return [product.to_dict() for product in products if product]
+
+    def scrape_asins_concurrently(self, asins: List[str]) -> List[Dict]:
+        """Synchronous wrapper for backwards compatibility"""
+        return asyncio.run(self.scrape_asins(asins))

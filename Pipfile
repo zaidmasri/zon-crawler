@@ -9,6 +9,7 @@ botasaurus = "*"
 asyncpg = "*"
 python-dotenv = "*"
 python-json-logger = "*"
+aiohttp = "*"
 
 [dev-packages]
 
