@@ -70,7 +70,7 @@ class AmazonScraper:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.session.close()
 
-    def _parse_review(self, review_element: BeautifulSoup) -> Optional[AmazonReview]:
+    def __parse_review(self, review_element: BeautifulSoup) -> Optional[AmazonReview]:
         """Parse a single review"""
         try:
             review = AmazonReview()
@@ -174,7 +174,7 @@ class AmazonScraper:
             print(f"Error parsing review: {e}")
             return None
 
-    async def _fetch_page(self, url: str) -> Optional[str]:
+    async def __fetch_page(self, url: str) -> Optional[str]:
         """Fetch a single page with retry logic and rate limiting"""
         for attempt in range(self.config.retry_attempts):
             try:
@@ -199,7 +199,7 @@ class AmazonScraper:
                     continue
         return None
 
-    async def _scrape_product_reviews(self, asin: str) -> AmazonProduct:
+    async def __scrape_product_reviews(self, asin: str) -> AmazonProduct:
         product = AmazonProduct()
         product.asin = asin
 
@@ -213,7 +213,7 @@ class AmazonScraper:
                         for page_number in range(1, self.config.max_pages + 1):
                             url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={sort_by.value}&pageNumber={page_number}&filterByStar={star_rating.value}&formatType={format_type.value}&mediaType={media_type.value}"
                             urls.append(url)
-                            tasks.append(self._fetch_page(url))
+                            tasks.append(self.__fetch_page(url))
 
         pages = await asyncio.gather(*tasks)
 
@@ -248,7 +248,7 @@ class AmazonScraper:
                 # Parse reviews
                 review_elements = soup.find_all("div", {"data-hook": "review"})
                 for review_element in review_elements:
-                    review = self._parse_review(review_element)
+                    review = self.__parse_review(review_element)
                     if review:
                         # Add the current URL to found_under
                         review.found_under.append(url)
@@ -270,7 +270,7 @@ class AmazonScraper:
         return product
 
     async def scrape_asins(self, asins: List[str]) -> List[Dict]:
-        tasks = [self._scrape_product_reviews(asin) for asin in asins]
+        tasks = [self.__scrape_product_reviews(asin) for asin in asins]
         products = await asyncio.gather(*tasks)
         return [product.to_dict() for product in products if product]
 
