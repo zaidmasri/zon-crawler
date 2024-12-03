@@ -205,17 +205,20 @@ class AmazonScraper:
         product.asin = asin
 
         tasks = []
+        urls = []  # List to track URLs
+
         for sort_by in AmazonFilterSortBy:
             for star_rating in AmazonFilterStarRating:
                 for format_type in AmazonFilterFormatType:
                     for media_type in AmazonFilterMediaType:
                         for page_number in range(1, self.config.max_pages + 1):
                             url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={sort_by.value}&pageNumber={page_number}&filterByStar={star_rating.value}&formatType={format_type.value}&mediaType={media_type.value}"
+                            urls.append(url)
                             tasks.append(self._fetch_page(url))
 
         pages = await asyncio.gather(*tasks)
 
-        for page_content in pages:
+        for url, page_content in zip(urls, pages):
             if page_content:
                 soup = BeautifulSoup(page_content, "html.parser")
 
@@ -247,9 +250,22 @@ class AmazonScraper:
                 review_elements = soup.find_all("div", {"data-hook": "review"})
                 for review_element in review_elements:
                     review = self._parse_review(review_element)
-                    if review and review.id not in self._review_cache:
-                        self._review_cache[review.id] = True
-                        product.review_list.append(review)
+                    if review:
+                        # Add the current URL to found_under
+                        review.found_under.append(url)
+
+                        # Check if this review ID already exists
+                        existing_review = next(
+                            (r for r in product.review_list if r.id == review.id), None
+                        )
+
+                        if existing_review:
+                            # Add new URL to existing review's found_under if not already present
+                            # if url not in existing_review.found_under:
+                            existing_review.found_under.append(url)
+                        else:
+                            # Add new review to the list
+                            product.review_list.append(review)
 
         print(f"Found {len(product.review_list)} unique reviews for ASIN {asin}")
         return product
