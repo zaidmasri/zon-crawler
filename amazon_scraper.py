@@ -22,7 +22,7 @@ from amazon_review import AmazonReview
 class ScrapingConfig:
     max_pages: int = 10
     max_workers: int = 5
-    max_concurrent_requests: int = 3
+    # max_concurrent_requests: int = 3
     request_timeout: int = 30
     retry_attempts: int = 3
     retry_delay: int = 1
@@ -63,7 +63,6 @@ class AmazonScraper:
             "s_cc": "true",
             "AMCV_4A8581745834114C0A495E2B%40AdobeOrg": "179643557%7CMCIDTS%7C20049%7CMCMID%7C80552200343015942363501208162927885838%7CMCAAMLH-1732807500%7C9%7CMCAAMB-1732807500%7CRKhpRz8krg2tLO6pguXWp5olkAcUniQYPHaMWWgdJ3xzPWQmdj0y%7CMCOPTOUT-1732209901s%7CNONE%7CMCAID%7CNONE%7CvVersion%7C5.5.0",
         }
-        self._review_cache = {}
 
     async def __aenter__(self):
         return self
@@ -102,8 +101,8 @@ class AmazonScraper:
                 review.href = title_element.get("href")
                 if review.href:
                     spans = title_element.find_all("span")
-                    if spans and len(spans) > 3:
-                        review.title = spans[3].get_text().strip()
+                    if spans and len(spans) >= 3:
+                        review.title = spans[2].get_text().strip()
                 else:
                     review.title = title_element.get_text().strip()
 
