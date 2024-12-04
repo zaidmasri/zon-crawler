@@ -128,7 +128,13 @@ class AmazonScraper:
                 "span", {"data-hook": "helpful-vote-statement"}
             )
             if helpful_element:
-                review.found_helpful = extract_integer(helpful_element.get_text()) or 0
+                text = helpful_element.get_text()
+                if "One" in text:
+                    review.found_helpful = 1
+                else:
+                    review.found_helpful = (
+                        extract_integer(helpful_element.get_text()) or 0
+                    )
 
             # Get username
             username_element = review_element.find("span", {"class": "a-profile-name"})
@@ -236,13 +242,13 @@ class AmazonScraper:
                             rating_element.get_text()
                         )
 
-                if not product.total_review_count:
-                    review_count_element = soup.find(
+                if not product.total_rating_count:
+                    rating_count_element = soup.find(
                         "div", {"data-hook": "total-review-count"}
                     )
-                    if review_count_element:
-                        product.total_review_count = extract_integer(
-                            review_count_element.get_text()
+                    if rating_count_element:
+                        product.total_rating_count = extract_integer(
+                            rating_count_element.get_text()
                         )
 
                 # Parse reviews
