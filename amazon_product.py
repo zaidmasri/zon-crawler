@@ -4,6 +4,7 @@ class AmazonProduct:
         self.name = ""
         self.overall_rating = 0.0
         self.total_rating_count = 0
+        self.total_reviews_count = 0
         self.review_list = []
 
     def __setitem__(self, key, value):
@@ -18,6 +19,7 @@ class AmazonProduct:
             "name": self.name,
             "overall_rating": self.overall_rating,
             "total_rating_count": self.total_rating_count,
+            "total_reviews_count": self.total_reviews_count,
             "review_list": [
                 review.to_dict() for review in self.review_list
             ],  # Convert reviews to dicts

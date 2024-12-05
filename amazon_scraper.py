@@ -13,6 +13,7 @@ from helpers import (
     extract_float_from_phrase,
     extract_integer,
     parse_review_date_and_country,
+    parse_reviews_count,
 )
 from amazon_product import AmazonProduct
 from amazon_review import AmazonReview
@@ -242,14 +243,21 @@ class AmazonScraper:
                             rating_element.get_text()
                         )
 
-                if not product.total_rating_count:
-                    rating_count_element = soup.find(
-                        "div", {"data-hook": "total-review-count"}
-                    )
-                    if rating_count_element:
-                        product.total_rating_count = extract_integer(
-                            rating_count_element.get_text()
-                        )
+                rating_count_element = soup.find(
+                    "div", {"data-hook": "total-review-count"}
+                )
+                if rating_count_element:
+                    count = extract_integer(rating_count_element.get_text())
+                    if count > product.total_rating_count:
+                        product.total_rating_count = count
+
+                total_reviews_count_element = soup.find(
+                    "div", {"data-hook": "cr-filter-info-review-rating-count"}
+                )
+                if total_reviews_count_element:
+                    count = parse_reviews_count(total_reviews_count_element.get_text())
+                    if count > product.total_rating_count:
+                        product.total_reviews_count = count
 
                 # Parse reviews
                 review_elements = soup.find_all("div", {"data-hook": "review"})
