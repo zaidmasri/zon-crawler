@@ -25,7 +25,7 @@ In light of the FTC's emphasis on transparency in online reviews, Zon Crawler fa
 - [x] If Pictures Exist
 - [x] If Video Exist
 - [x] Grab Links for Picture
-- [ ] Grab Links for Video
+- [x] Grab Links for Video
   - [ ] Check if multiple videos exist on a single review
 - [x] Product Overall Rating
   - [x] Convert to float

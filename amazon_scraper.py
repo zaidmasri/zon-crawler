@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 from typing import Optional, Dict, List
 from dataclasses import dataclass
+from urllib.parse import urlparse
 from helpers import (
     AmazonFilterFormatType,
     AmazonFilterMediaType,
@@ -39,21 +40,22 @@ class AmazonScraper:
             connector=aiohttp.TCPConnector(ssl=ssl_context)
         )
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1.1 Safari/605.1.15",
         }
         self.cookies = {
             "session-id": os.getenv("AMAZON_SESSION_ID"),
             "session-token": os.getenv("AMAZON_TOKEN"),
+            "session-id-time": "2082787201l",
+            "csm-hit": "tb:s-XVTZMTMC0MQH2SD94GZA|1733432567463&t:1733432567569&adb:adblk_no",
             "i18n-prefs": "USD",
             "skin": "noskin",
-            "ubid-main": "132-8139505-0179230",
+            "ubid-main": "131-6582877-3983161",
             "lc-main": "en_US",
             "av-timezone": "America/Indianapolis",
-            "at-main": "Atza|IwEBIKwUfNTXyLhyUtWDwLm-OhLSMEFWVqf5ZJ-9zWNgUDAG1Cy3vsUsBNftXekacwztgitKcEMAZ9OgVMifQyuDBq8dOSinK8NDQfC5Z6KJnDtTMERcHujfQf2WDEogJy7Pq8c57tEn6fH_RA7GvDWcbM_jzguokpTuv4uMq_lnDw5HYGXPbm6GeuwgXHFZ_jtU1X2SIeGGqbHxHkl2qIQdjZ__KNanE26HyU5AK6nqX6_xA5wJKLiEntqX3-qPOF-QQZQ",
-            "sess-at-main": '"liFtyHKrXtJyyOs0gYL3So4t7TlyUlC6vEaEmeITiQM="',
+            "at-main": "Atza|IwEBIERBQGDbtCI4CISTCd_PlCPnF-jh1YCtVujmzYCjvnI5WAhC7TnL8oOBJxhp74YfI1nEK9a0C3xQPnI9eeMWLSOxcfB6m-TvmzKy_4x4FwqGrYvQfEvXL4jPCDO1-7Yd9UZA0VZQUyA-Fn-lMpKEk0QXF_etLXiqcrLicKZWbbIZAvGxSdzyK66t6hfNwiJM2CTIW0_HnHszhc0o5G3qkItt2gGtXP4w3Odmh8CgruRMow",
+            "sess-at-main": "+HAoKMGLZpO3/l0tEjT1paPvintgrxNOdDHhJqr4aQ4=",
             "sst-main": "Sst1|PQFwQGHFc_NTcqmeWoTc_H52CRf7n7_SHNX4FjJX9Erboq8CVVlx0Vz50qLGqk_uTTWL7VdF3yZAVIYjv0UMnaCP1EvI2Vuh0oWesOyAgPxUkAxJZ8Rg6hI2NcLy5wam4GZWLKHb8-ls8i3tuHySA9N9UUcbEO_QiHNjmM7CgekGHBK5bckNP5TmSz_LSXW6QfrlmD9Q1be1nP_zJJNc9B5e_ZRCeYyfhT9IxSvpqFXNve1M-CCSvgWPnIPLNL0nAi_mLcaV3-EsKF1zobNtdd9QemtvvrS3TK4j4ksO97e6CCU",
-            "session-id-time": "2082787201l",
-            "x-main": "8wVqNxiOZwbL6bxOoTFJI@d9o@B4gPuL5a3Ru7QDH4FHIVAkKl7t9mEkUhZq8EJL",
+            "x-main": "gaQQ0V1@oiy5t2KAY4?1bQ5pi2@Jzh8z1f3JEwD0jGv0djSvhGxmNhGQ5mCQNAvY",
             "appstore-devportal-locale": "en_US",
             "_mkto_trk": "id:365-EFI-026&token:_mch-amazon.com-de91e154c048b644782603e76c4486b2",
             "at_check": "true",
@@ -63,6 +65,8 @@ class AmazonScraper:
             "s_ips": "1134",
             "s_cc": "true",
             "AMCV_4A8581745834114C0A495E2B%40AdobeOrg": "179643557%7CMCIDTS%7C20049%7CMCMID%7C80552200343015942363501208162927885838%7CMCAAMLH-1732807500%7C9%7CMCAAMB-1732807500%7CRKhpRz8krg2tLO6pguXWp5olkAcUniQYPHaMWWgdJ3xzPWQmdj0y%7CMCOPTOUT-1732209901s%7CNONE%7CMCAID%7CNONE%7CvVersion%7C5.5.0",
+            "x-amz-captcha-1": "1733434180604986",
+            "x-amz-captcha-2": "4tJdfYoL/fjxroNeoe8PYQ==",
         }
 
     async def __aenter__(self):
@@ -183,32 +187,61 @@ class AmazonScraper:
 
     async def __fetch_page(self, url: str) -> Optional[str]:
         """Fetch a single page with retry logic and rate limiting"""
+
+        # Validate URL format
+        try:
+            result = urlparse(url)
+            if not all([result.scheme, result.netloc]):
+                print(f"Invalid URL format: {url}")
+                return None
+        except Exception as e:
+            print(f"URL parsing error: {repr(e)}")
+            return None
+
         for attempt in range(self.config.retry_attempts):
             try:
                 async with self.session.get(
-                    url,
+                    url=url,
                     headers=self.headers,
                     cookies=self.cookies,
                     timeout=self.config.request_timeout,
                 ) as response:
                     if response.status == 200:
                         return await response.text()
-                    elif response.status == 429:
-                        await asyncio.sleep(self.config.retry_delay * (attempt + 1))
-                        continue
+                    elif response.status == 404:
+                        print(f"Page not found (404): {url}")
+                        return None  # Don't retry on 404
+                    elif response.status in [500, 502, 503, 504]:
+                        if attempt < self.config.retry_attempts - 1:
+                            wait_time = self.config.retry_delay * (attempt + 1)
+                            print(
+                                f"Server error {response.status}, retrying in {wait_time}s..."
+                            )
+                            await asyncio.sleep(wait_time)
+                            continue
                     else:
-                        print(f"Failed to fetch {url}: Status {response.status}")
+                        print(f"HTTP {response.status} error while fetching {url}")
+                        if attempt < self.config.retry_attempts - 1:
+                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                            continue
                         return None
-            except Exception as e:
-                print(f"Error fetching {url}: {e}")
+
+            except aiohttp.ClientError as e:
+                print(f"Network error: {repr(e)}")
                 if attempt < self.config.retry_attempts - 1:
                     await asyncio.sleep(self.config.retry_delay * (attempt + 1))
                     continue
+            except asyncio.TimeoutError:
+                print(f"Request timed out for {url}")
+                if attempt < self.config.retry_attempts - 1:
+                    await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                    continue
+            except Exception as e:
+                print(f"Unexpected error: {repr(e)}")
+                return None
         return None
 
     async def __scrape_product_reviews(self, asin: str) -> AmazonProduct:
-        product = AmazonProduct()
-        product.asin = asin
 
         tasks = []
         urls = []  # List to track URLs
@@ -223,62 +256,61 @@ class AmazonScraper:
                             tasks.append(self.__fetch_page(url))
 
         pages = await asyncio.gather(*tasks)
+        product = AmazonProduct(asin=asin)
 
         for url, page_content in zip(urls, pages):
-            if page_content:
-                soup = BeautifulSoup(page_content, "html.parser")
+            if not page_content:
+                product.failed_urls.append(url)
+                continue
+            soup = BeautifulSoup(page_content, "html.parser")
 
-                # Update product info if not already set
-                if not product.name:
-                    product_element = soup.find("a", {"data-hook": "product-link"})
-                    if product_element:
-                        product.name = product_element.get_text().strip()
+            # Update product info if not already set
+            if product.name == "":
+                product_element = soup.find("a", {"data-hook": "product-link"})
+                if product_element:
+                    product.name = product_element.get_text().strip()
 
-                if not product.overall_rating:
-                    rating_element = soup.find(
-                        "span", {"data-hook": "rating-out-of-text"}
+            if product.overall_rating == 0:
+                rating_element = soup.find("span", {"data-hook": "rating-out-of-text"})
+                if rating_element:
+                    product.overall_rating = extract_float_from_phrase(
+                        rating_element.get_text()
                     )
-                    if rating_element:
-                        product.overall_rating = extract_float_from_phrase(
-                            rating_element.get_text()
-                        )
 
-                rating_count_element = soup.find(
-                    "div", {"data-hook": "total-review-count"}
-                )
-                if rating_count_element:
-                    count = extract_integer(rating_count_element.get_text())
-                    if count > product.total_rating_count:
-                        product.total_rating_count = count
+            rating_count_element = soup.find("div", {"data-hook": "total-review-count"})
+            if rating_count_element:
+                count = extract_integer(rating_count_element.get_text())
+                if count > product.total_rating_count:
+                    product.total_rating_count = count
 
-                total_reviews_count_element = soup.find(
-                    "div", {"data-hook": "cr-filter-info-review-rating-count"}
-                )
-                if total_reviews_count_element:
-                    count = parse_reviews_count(total_reviews_count_element.get_text())
-                    if count > product.total_reviews_count:
-                        product.total_reviews_count = count
+            total_reviews_count_element = soup.find(
+                "div", {"data-hook": "cr-filter-info-review-rating-count"}
+            )
+            if total_reviews_count_element:
+                count = parse_reviews_count(total_reviews_count_element.get_text())
+                if count > product.total_reviews_count:
+                    product.total_reviews_count = count
 
-                # Parse reviews
-                review_elements = soup.find_all("div", {"data-hook": "review"})
-                for review_element in review_elements:
-                    review = self.__parse_review(review_element)
-                    if review:
-                        # Add the current URL to found_under
-                        review.found_under.append(url)
+            # Parse reviews
+            review_elements = soup.find_all("div", {"data-hook": "review"})
+            for review_element in review_elements:
+                review = self.__parse_review(review_element)
+                if review:
+                    # Add the current URL to found_under
+                    review.found_under.append(url)
 
-                        # Check if this review ID already exists
-                        existing_review = next(
-                            (r for r in product.review_list if r.id == review.id), None
-                        )
+                    # Check if this review ID already exists
+                    existing_review = next(
+                        (r for r in product.review_list if r.id == review.id), None
+                    )
 
-                        if existing_review:
-                            # Add new URL to existing review's found_under if not already present
-                            # if url not in existing_review.found_under:
+                    if existing_review:
+                        # Add new URL to existing review's found_under if not already present
+                        if url not in existing_review.found_under:
                             existing_review.found_under.append(url)
-                        else:
-                            # Add new review to the list
-                            product.review_list.append(review)
+                    else:
+                        # Add new review to the list
+                        product.review_list.append(review)
 
         print(f"Found {len(product.review_list)} unique reviews for ASIN {asin}")
         return product

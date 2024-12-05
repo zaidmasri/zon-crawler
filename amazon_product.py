@@ -1,11 +1,12 @@
 class AmazonProduct:
-    def __init__(self):
-        self.asin = ""
+    def __init__(self, asin: str):
+        self.asin = asin
         self.name = ""
         self.overall_rating = 0.0
         self.total_rating_count = 0
         self.total_reviews_count = 0
         self.review_list = []
+        self.failed_urls = []
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
@@ -23,4 +24,5 @@ class AmazonProduct:
             "review_list": [
                 review.to_dict() for review in self.review_list
             ],  # Convert reviews to dicts
+            "failed_urls": self.failed_urls,
         }
