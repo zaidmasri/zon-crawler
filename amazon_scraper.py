@@ -256,7 +256,7 @@ class AmazonScraper:
                 )
                 if total_reviews_count_element:
                     count = parse_reviews_count(total_reviews_count_element.get_text())
-                    if count > product.total_rating_count:
+                    if count > product.total_reviews_count:
                         product.total_reviews_count = count
 
                 # Parse reviews
