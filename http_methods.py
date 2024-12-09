@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import os
+from pathlib import Path
 import ssl
 from typing import Optional
 from urllib.parse import urlparse
@@ -11,12 +12,20 @@ from scraping_config import ScrapingConfig
 class HttpMethods:
     def __init__(self, config: Optional[ScrapingConfig] = None):
         self.config = config or ScrapingConfig()
+        self.__setup_session()
+        self.__setup_headers_and_cookies()
+        self._pages_dir = Path("./data/pfw/pages")
+        self._pages_dir.mkdir(parents=True, exist_ok=True)
+
+    def __setup_session(self) -> None:
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         self.session = aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(ssl=ssl_context)
         )
+
+    def __setup_headers_and_cookies(self) -> None:
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1.1 Safari/605.1.15",
         }
@@ -53,37 +62,37 @@ class HttpMethods:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.session.close()
 
-    def encode_url_to_base64_filename(self, url: str) -> str:
+    def __encode_url_to_base64_filename(self, url: str) -> str:
         # Encode the URL to Base64
         base64_encoded = base64.urlsafe_b64encode(url.encode()).decode()
         # Truncate or adjust to avoid overly long filenames
         return base64_encoded[:255]
 
-    async def get_and_download_url(self, url: str) -> Optional[str]:
-        """
-        Given a url it'll check if we've already downloaded the url.
-        if so return without requesting a new page. Else download and return page from request.
-        """
+    def __get_cached_content(self, filename: str) -> Optional[str]:
+        file_path = self._pages_dir / filename
+        if file_path.exists():
+            return file_path.read_text()
+        return None
 
-        # Validate URL format
+    async def __handle_response(
+        self, response: aiohttp.ClientResponse, url: str, filename: str
+    ) -> Optional[str]:
+        if response.status == 200:
+            content = await response.text()
+            file_path = self._pages_dir / filename
+            file_path.write_text(content)
+            return content
+        return None
+
+    def __validate_url(self, url: str) -> bool:
         try:
             result = urlparse(url)
-            if not all([result.scheme, result.netloc]):
-                print(f"Invalid URL format: {url}")
-                return None
+            return bool(result.scheme and result.netloc)
         except Exception as e:
             print(f"URL parsing error: {repr(e)}")
-            return None
+            return False
 
-        path = "./data/pfw/pages/"
-        encoded_url = self.encode_url_to_base64_filename(url)
-        files = os.listdir(path)
-
-        if encoded_url in files:
-            print("found in directory")
-            with open(path + str(encoded_url)) as file:
-                return file.read()
-
+    async def __fetch_and_cache_url(self, url: str, filename: str) -> Optional[str]:
         for attempt in range(self.config.retry_attempts):
             try:
                 async with self.session.get(
@@ -93,40 +102,37 @@ class HttpMethods:
                     timeout=self.config.request_timeout,
                 ) as response:
                     if response.status == 200:
-                        filename = self.encode_url_to_base64_filename(url)
-                        with open(path + filename, "w+") as file:
-                            resp = await response.text()
-                            file.write(resp)
-                            return resp
+                        return await self.__handle_response(response, url, filename)
                     elif response.status == 404:
-                        print(f"Page not found (404): {url}")
-                        return None  # Don't retry on 404
-                    elif response.status in [500, 502, 503, 504]:
-                        if attempt < self.config.retry_attempts - 1:
-                            wait_time = self.config.retry_delay * (attempt + 1)
-                            print(
-                                f"Server error {response.status}, retrying in {wait_time}s..."
-                            )
-                            await asyncio.sleep(wait_time)
-                            continue
-                    else:
-                        print(f"HTTP {response.status} error while fetching {url}")
-                        if attempt < self.config.retry_attempts - 1:
-                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
-                            continue
                         return None
-
-            except aiohttp.ClientError as e:
-                print(f"Network error: {repr(e)}")
-                if attempt < self.config.retry_attempts - 1:
-                    await asyncio.sleep(self.config.retry_delay * (attempt + 1))
-                    continue
-            except asyncio.TimeoutError:
-                print(f"Request timed out for {url}")
-                if attempt < self.config.retry_attempts - 1:
-                    await asyncio.sleep(self.config.retry_delay * (attempt + 1))
-                    continue
+                    elif response.status in [500, 502, 503, 504]:
+                        await self.__handle_retry(attempt)
+                        continue
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                print(f"Network/timeout error: {repr(e)}")
+                await self.__handle_retry(attempt)
+                continue
             except Exception as e:
                 print(f"Unexpected error: {repr(e)}")
                 return None
         return None
+
+    async def __handle_retry(self, attempt: int) -> None:
+        if attempt < self.config.retry_attempts - 1:
+            wait_time = self.config.retry_delay * (attempt + 1)
+            await asyncio.sleep(wait_time)
+
+    async def get_and_download_url(self, url: str) -> Optional[str]:
+        """
+        Given a url it'll check if we've already downloaded the html file.
+        if so return without requesting a new page. Else download and return page from request.
+        """
+
+        if not self.__validate_url(url):
+            return None
+
+        filename = self.__encode_url_to_base64_filename(url)
+        if cached_content := self.__get_cached_content(filename):
+            return cached_content
+
+        return await self.__fetch_and_cache_url(url, filename)
