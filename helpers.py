@@ -49,6 +49,7 @@ def parse_review_date_and_country(date_text):
         print(f"Date parsing error: {e} for text: {date_text}")
     return None
 
+
 def parse_reviews_count(phrase: str) -> int:
     """
     Parses the number of reviews from a given phrase.
@@ -59,11 +60,12 @@ def parse_reviews_count(phrase: str) -> int:
     Returns:
         int: The number of reviews, or 0 if not found.
     """
-    match = re.search(r'(\d[\d,]*) with reviews', phrase)
+    match = re.search(r"(\d[\d,]*) with reviews", phrase)
     if match:
         # Remove commas and convert to integer
-        return int(match.group(1).replace(',', ''))
+        return int(match.group(1).replace(",", ""))
     return 0
+
 
 class AmazonFilterMediaType(Enum):
     MEDIA_REVIEWS_ONLY = "media_reviews_only"
