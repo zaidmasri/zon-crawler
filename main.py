@@ -5,7 +5,7 @@ import time
 import pandas as pd
 from amazon_scraper import AmazonScraper, ScrapingConfig
 
-chunk_size = 1
+chunk_size = 10
 max_pages = 10
 max_workers = 10
 request_timeout = 60
@@ -35,8 +35,6 @@ async def main():
         raise Exception("df does not contain a column called review_complete")
 
     filtered_df = df[df["review_complete"] != 1]
-    
-    print(filtered_df.iloc[0])
 
     if filtered_df.empty:
         print("All ASINs have been scraped.")
@@ -45,7 +43,7 @@ async def main():
     config = ScrapingConfig(
         max_pages=max_pages,
         max_workers=max_workers,
-        # max_concurrent_requests=3,
+        max_concurrent_requests=50,
         request_timeout=request_timeout,
         retry_attempts=retry_attempts,
     )

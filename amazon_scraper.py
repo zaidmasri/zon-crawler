@@ -15,6 +15,7 @@ from amazon_product import AmazonProduct
 from amazon_review import AmazonReview
 from scraping_config import ScrapingConfig
 from http_methods import HttpMethods
+from tqdm import tqdm
 
 
 class AmazonScraper:
@@ -139,26 +140,45 @@ class AmazonScraper:
             print(f"Error parsing review: {e}")
             return None
 
-    async def __scrape_product_reviews(self, asin: str) -> AmazonProduct:
-        tasks = []
-        urls = []  # List to track URLs
+    async def __process_page(
+        self, url: str, asin: str, semaphore: asyncio.Semaphore
+    ) -> tuple[str, Optional[str]]:
+        """Process a single page with semaphore control"""
+        async with semaphore:
+            content = await self.http_methods.get_and_download_url(url)
+            return url, content
 
+    async def __scrape_product_reviews(
+        self,
+        asin: str,
+        semaphore: asyncio.Semaphore,
+        progress_bar: Optional[tqdm] = None,
+    ) -> AmazonProduct:
+        tasks = []
+
+        # Generate all URLs first
         for sort_by in AmazonFilterSortBy:
             for star_rating in AmazonFilterStarRating:
                 for format_type in AmazonFilterFormatType:
                     for media_type in AmazonFilterMediaType:
                         for page_number in range(1, self.config.max_pages + 1):
                             url = f"https://www.amazon.com/product-reviews/{asin}?sortBy={sort_by.value}&pageNumber={page_number}&filterByStar={star_rating.value}&formatType={format_type.value}&mediaType={media_type.value}"
-                            urls.append(url)
-                            tasks.append(self.http_methods.get_and_download_url(url))
+                            tasks.append(self.__process_page(url, asin, semaphore))
 
-        pages = await asyncio.gather(*tasks)
+        # Process all pages concurrently
+        results = await asyncio.gather(*tasks)
+
         product = AmazonProduct(asin=asin)
 
-        for url, page_content in zip(urls, pages):
+        # Process results
+        for url, page_content in results:
+            if progress_bar:
+                progress_bar.update(1)
+
             if not page_content:
                 product.failed_urls.append(url)
                 continue
+
             soup = BeautifulSoup(page_content, "html.parser")
 
             # Update product info if not already set
@@ -193,28 +213,46 @@ class AmazonScraper:
             for review_element in review_elements:
                 review = self.__parse_review(review_element)
                 if review:
-                    # Add the current URL to found_under
                     review.found_under.append(url)
-
-                    # Check if this review ID already exists
                     existing_review = next(
                         (r for r in product.review_list if r.id == review.id), None
                     )
-
                     if existing_review:
-                        # Add new URL to existing review's found_under if not already present
                         if url not in existing_review.found_under:
                             existing_review.found_under.append(url)
                     else:
-                        # Add new review to the list
                         product.review_list.append(review)
 
         print(f"Found {len(product.review_list)} unique reviews for ASIN {asin}")
         return product
 
     async def scrape_asins(self, asins: List[str]) -> List[Dict]:
-        tasks = [self.__scrape_product_reviews(asin) for asin in asins]
+        # Calculate total pages across all ASINs
+        pages_per_asin = (
+            len(AmazonFilterSortBy)
+            * len(AmazonFilterStarRating)
+            * len(AmazonFilterFormatType)
+            * len(AmazonFilterMediaType)
+            * self.config.max_pages
+        )
+        total_pages = len(asins) * pages_per_asin
+
+        # Create progress bar
+        progress_bar = tqdm(
+            total=total_pages, desc="Scraping Progress", position=0, leave=True
+        )
+
+        # Create semaphore for controlling concurrent requests
+        semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
+
+        # Process all ASINs concurrently
+        tasks = [
+            self.__scrape_product_reviews(asin, semaphore, progress_bar)
+            for asin in asins
+        ]
         products = await asyncio.gather(*tasks)
+
+        progress_bar.close()
         return [product.to_dict() for product in products if product]
 
     def scrape_asins_concurrently(self, asins: List[str]) -> List[Dict]:
