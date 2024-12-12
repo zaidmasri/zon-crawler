@@ -6,6 +6,7 @@ import ssl
 from typing import Optional
 from urllib.parse import urlparse
 import aiohttp
+from bs4 import BeautifulSoup
 from scraping_config import ScrapingConfig
 
 
@@ -69,17 +70,21 @@ class HttpMethods:
         return base64_encoded[:255]
 
     def __get_cached_content(self, filename: str) -> Optional[str]:
-        file_path = self._pages_dir / filename
+        file_path = (self._pages_dir / filename).with_suffix(".html")
         if file_path.exists():
             return file_path.read_text()
         return None
 
     async def __handle_response(
-        self, response: aiohttp.ClientResponse, url: str, filename: str
+        self, response: aiohttp.ClientResponse, filename: str
     ) -> Optional[str]:
         if response.status == 200:
             content = await response.text()
-            file_path = self._pages_dir / filename
+            is_captcha = self.__is_captcha_page(content)
+            if is_captcha:
+                return None
+            file_path = (self._pages_dir / filename).with_suffix(".html")
+
             file_path.write_text(content)
             return content
         return None
@@ -102,7 +107,7 @@ class HttpMethods:
                     timeout=self.config.request_timeout,
                 ) as response:
                     if response.status == 200:
-                        return await self.__handle_response(response, url, filename)
+                        return await self.__handle_response(response, filename)
                     elif response.status == 404:
                         return None
                     elif response.status in [500, 502, 503, 504]:
@@ -121,6 +126,10 @@ class HttpMethods:
         if attempt < self.config.retry_attempts - 1:
             wait_time = self.config.retry_delay * (attempt + 1)
             await asyncio.sleep(wait_time)
+
+    def __is_captcha_page(self, html: str) -> bool:
+        soup = BeautifulSoup(html, "html.parser")
+        return bool(soup.findAll(text="Enter the characters you see below"))
 
     async def get_and_download_url(self, url: str) -> Optional[str]:
         """
