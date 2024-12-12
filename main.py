@@ -1,11 +1,9 @@
 import asyncio
-import json
-import os
 import time
 import pandas as pd
 from amazon_scraper import AmazonScraper, ScrapingConfig
 
-chunk_size = 10
+chunk_size = 5
 max_pages = 10
 max_workers = 10
 request_timeout = 60
@@ -39,7 +37,7 @@ async def main():
     if filtered_df.empty:
         print("All ASINs have been scraped.")
         return
-      
+
     config = ScrapingConfig(
         max_pages=max_pages,
         max_workers=max_workers,
@@ -57,16 +55,6 @@ async def main():
         async with AmazonScraper(config) as scraper:
             results = await scraper.scrape_asins(chunk["asin"])
             for product in results:
-                # Ensure the directory exists
-                output_dir = "./data/pfw/results/"
-                os.makedirs(output_dir, exist_ok=True)
-
-                # Write product data to a JSON file
-                file_path = os.path.join(output_dir, f"{product['asin']}.json")
-                with open(file_path, "w") as json_file:
-                    json.dump(product, json_file, indent=4)
-
-                print(f"File successfully created: {file_path}")
                 # Update the `review_complete` column for the current chunk
                 asin_index = df.index[df["asin"] == product["asin"]]
                 df.loc[asin_index, "review_complete"] = 1

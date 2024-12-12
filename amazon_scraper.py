@@ -1,3 +1,5 @@
+import json
+import os
 from bs4 import BeautifulSoup
 import asyncio
 from typing import Optional, Dict, List
@@ -224,6 +226,17 @@ class AmazonScraper:
                         product.review_list.append(review)
 
         print(f"Found {len(product.review_list)} unique reviews for ASIN {asin}")
+        
+        # Ensure the directory exists
+        output_dir = "./data/pfw/results/"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Write product data to a JSON file
+        file_path = os.path.join(output_dir, f"{product['asin']}.json")
+        with open(file_path, "w") as json_file:
+            json.dump(product, json_file, indent=4)
+            print(f"File successfully created: {file_path}")
+
         return product
 
     async def scrape_asins(self, asins: List[str]) -> List[Dict]:
