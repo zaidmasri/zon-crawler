@@ -68,7 +68,7 @@ def parse_reviews_count(phrase: str) -> int:
 
 
 class AmazonFilterMediaType(Enum):
-    MEDIA_REVIEWS_ONLY = "media_reviews_only"
+    # MEDIA_REVIEWS_ONLY = "media_reviews_only"
     ALL_CONTENTS = "all_contents"
 
 
@@ -78,14 +78,14 @@ class AmazonFilterSortBy(Enum):
 
 
 class AmazonFilterStarRating(Enum):
-    ALL_STAR = "all_star"
+    # ALL_STAR = "all_star"
     FIVE_STAR = "five_star"
     FOUR_STAR = "four_star"
     THREE_STAR = "three_star"
     TWO_STAR = "two_star"
     ONE_STAR = "one_star"
-    POSITIVE = "positive"
-    CRITICAL = "critical"
+    # POSITIVE = "positive"
+    # CRITICAL = "critical"
 
 
 class AmazonFilterFormatType(Enum):
