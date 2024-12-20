@@ -23,7 +23,7 @@ class HttpMethods:
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         self.session = aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(ssl=ssl_context)
+            connector=aiohttp.TCPConnector(ssl=ssl_context),
         )
 
     def __setup_headers_and_cookies(self) -> None:
@@ -53,8 +53,8 @@ class HttpMethods:
             "s_ips": "1134",
             "s_cc": "true",
             "AMCV_4A8581745834114C0A495E2B%40AdobeOrg": "179643557%7CMCIDTS%7C20049%7CMCMID%7C80552200343015942363501208162927885838%7CMCAAMLH-1732807500%7C9%7CMCAAMB-1732807500%7CRKhpRz8krg2tLO6pguXWp5olkAcUniQYPHaMWWgdJ3xzPWQmdj0y%7CMCOPTOUT-1732209901s%7CNONE%7CMCAID%7CNONE%7CvVersion%7C5.5.0",
-            "x-amz-captcha-1": "1733459969656325",
-            "x-amz-captcha-2": "fv2oLzT5IJ5lmHWdTfz4lw==",
+            "x-amz-captcha-1": "1734594441517255",
+            "x-amz-captcha-2": "0o/bHZVzfpmJR/JNIcfkpg==",
         }
 
     async def __aenter__(self):
@@ -81,10 +81,12 @@ class HttpMethods:
         if response.status == 200:
             content = await response.text()
             is_captcha = self.__is_captcha_page(content)
-            if is_captcha:
+            is_no_reviews_page = self.__is_no_reviews_page(content)
+            is_login_page = self.__is_login_page(content)
+
+            if is_captcha or is_no_reviews_page or is_login_page:
                 return None
             file_path = (self._pages_dir / filename).with_suffix(".html")
-
             file_path.write_text(content)
             return content
         return None
@@ -108,17 +110,17 @@ class HttpMethods:
                 ) as response:
                     if response.status == 200:
                         return await self.__handle_response(response, filename)
-                    elif response.status == 404:
+                    elif response.status in [403, 404]:
                         return None
                     elif response.status in [500, 502, 503, 504]:
                         await self.__handle_retry(attempt)
                         continue
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                print(f"Network/timeout error: {repr(e)}")
+                print(f"Network/timeout error {url}: {repr(e)}")
                 await self.__handle_retry(attempt)
                 continue
             except Exception as e:
-                print(f"Unexpected error: {repr(e)}")
+                print(f"Unexpected error at url {url}: {repr(e)}")
                 return None
         return None
 
@@ -130,6 +132,19 @@ class HttpMethods:
     def __is_captcha_page(self, html: str) -> bool:
         soup = BeautifulSoup(html, "html.parser")
         return bool(soup.findAll(text="Enter the characters you see below"))
+
+    def __is_no_reviews_page(self, html: str) -> bool:
+        # Check if no reviews match current filtered selection
+        soup = BeautifulSoup(html, "html.parser")
+        rtn = bool(
+            soup.findAll(text="Sorry, no reviews match your current selections.")
+        )
+        return rtn
+
+    def __is_login_page(self, html: str) -> bool:
+        soup = BeautifulSoup(html, "html.parser")
+        rtn = bool(soup.findAll(attrs={"name": "signIn"}))
+        return rtn
 
     async def get_and_download_url(self, url: str) -> Optional[str]:
         """
