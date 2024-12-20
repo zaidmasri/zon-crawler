@@ -15,13 +15,6 @@ def split_dataframe(df: pd.DataFrame, chunk_size: int) -> list[pd.DataFrame]:
     return [df.iloc[i : i + chunk_size] for i in range(0, len(df), chunk_size)]
 
 
-def mark_complete(df: pd.DataFrame):
-    # Save updated DataFrame to a file (e.g., a checkpoint)
-    df.to_pickle("./data/pfw/04_extract_reviews.pkl")
-    df.to_csv("./data/pfw/04_extract_reviews.csv")
-    print("Marked as complete and saved to disk.")
-
-
 async def main():
 
     df = pd.read_pickle("./data/pfw/04_extract_reviews.pkl")
@@ -53,12 +46,8 @@ async def main():
         start_time = time.time()
 
         async with AmazonScraper(config) as scraper:
-            results = await scraper.scrape_asins(chunk["asin"])
-            for product in results:
-                # Update the `review_complete` column for the current chunk
-                asin_index = df.index[df["asin"] == product["asin"]]
-                df.loc[asin_index, "review_complete"] = 1
-        mark_complete(df)
+            await scraper.scrape_asins(asins=chunk["asin"], target_df=df)
+        
         end_time = time.time()
         elapsed_time = end_time - start_time
 

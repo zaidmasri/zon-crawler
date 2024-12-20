@@ -3,6 +3,8 @@ import os
 from bs4 import BeautifulSoup
 import asyncio
 from typing import Optional, Dict, List
+
+import pandas as pd
 from helpers import (
     AmazonFilterFormatType,
     AmazonFilterMediaType,
@@ -154,6 +156,7 @@ class AmazonScraper:
         self,
         asin: str,
         semaphore: asyncio.Semaphore,
+        target_df: pd.DataFrame,
         progress_bar: Optional[tqdm] = None,
     ) -> AmazonProduct:
         tasks = []
@@ -225,21 +228,37 @@ class AmazonScraper:
                     else:
                         product.review_list.append(review)
 
-        print(f"Found {len(product.review_list)} unique reviews for ASIN {asin}")
-        
+        self.__mark_complete(df=target_df, product=product)
+        return product
+
+    def __mark_complete(self, df: pd.DataFrame, product: AmazonProduct):
+        print(
+            f"Found {len(product.review_list)} unique reviews for ASIN {product.asin}"
+        )
         # Ensure the directory exists
         output_dir = "./data/pfw/results/"
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Write product data to a JSON file
         file_path = os.path.join(output_dir, f"{product['asin']}.json")
         with open(file_path, "w") as json_file:
-            json.dump(product, json_file, indent=4)
+            json.dump(product.to_dict(), json_file, indent=4)
             print(f"File successfully created: {file_path}")
 
-        return product
+        if len(product.review_list) == 0:
+            print(f"no reviews found for: {product.asin}")
+            return
 
-    async def scrape_asins(self, asins: List[str]) -> List[Dict]:
+        # Update the `review_complete` column for the current chunk
+        asin_index = df.index[df["asin"] == product.asin]
+        df.loc[asin_index, "review_complete"] = 1
+
+        # Save updated DataFrame to a file (e.g., a checkpoint)
+        df.to_pickle("./data/pfw/04_extract_reviews.pkl")
+        df.to_csv("./data/pfw/04_extract_reviews.csv")
+        print("Marked as complete and saved to disk.")
+
+    async def scrape_asins(self, asins: List[str], target_df: pd.DataFrame):
         # Calculate total pages across all ASINs
         pages_per_asin = (
             len(AmazonFilterSortBy)
@@ -260,13 +279,14 @@ class AmazonScraper:
 
         # Process all ASINs concurrently
         tasks = [
-            self.__scrape_product_reviews(asin, semaphore, progress_bar)
+            self.__scrape_product_reviews(asin, semaphore, target_df, progress_bar)
             for asin in asins
         ]
-        products = await asyncio.gather(*tasks)
+        # products = await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
 
         progress_bar.close()
-        return [product.to_dict() for product in products if product]
+        # return [product.to_dict() for product in products if product]
 
     def scrape_asins_concurrently(self, asins: List[str]) -> List[Dict]:
         """Synchronous wrapper for backwards compatibility"""
