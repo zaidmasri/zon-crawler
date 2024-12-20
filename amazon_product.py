@@ -26,3 +26,28 @@ class AmazonProduct:
             ],  # Convert reviews to dicts
             "failed_urls": self.failed_urls,
         }
+
+    @staticmethod
+    def from_json(json_data: dict) -> "AmazonProduct":
+        """
+        Translates a JSON object into an AmazonProduct instance.
+
+        Args:
+            json_data (dict): The JSON data representing an Amazon product.
+
+        Returns:
+            AmazonProduct: An instance of the AmazonProduct class.
+        """
+        # Extract the 'asin' field
+        asin = json_data.get("asin", "")
+        product = AmazonProduct(asin)
+
+        # Map JSON fields to class attributes
+        product.name = json_data.get("name", "")
+        product.overall_rating = json_data.get("overall_rating", 0.0)
+        product.total_rating_count = json_data.get("total_rating_count", 0)
+        product.total_reviews_count = json_data.get("total_reviews_count", 0)
+        product.review_list = json_data.get("review_list", [])
+        product.failed_urls = json_data.get("failed_urls", [])
+
+        return product
